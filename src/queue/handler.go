@@ -44,7 +44,7 @@ func (h *httpHandler) Handle(message Message) error {
 	log := handlerLogger.Str("messageId", message.Id()).Logger()
 	log.Debug().Msg("Start handling message")
 
-	res, err := h.client.Post().JSON(message.Id()).Send()
+	res, err := h.client.Post().JSON(message.Data()).Send()
 
 	if err == nil && res.ServerError {
 		err = fmt.Errorf("Invalid server response: %d", res.StatusCode)

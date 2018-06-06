@@ -175,7 +175,7 @@ func (c *httpClient) Delete(message *AzureMessage) error {
 		end("false")
 	} else {
 		log.Debug().Msg("Finish deleting message from queue")
-		end(c.queueName, "true")
+		end("true")
 	}
 
 	return err
@@ -200,7 +200,7 @@ main:
 				break main
 			default:
 			}
-
+			m.AzureClient = c
 			out <- &m
 		}
 	}
