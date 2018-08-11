@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"../metrics"
+	"github.com/soluto/dqd/metrics"
 	"github.com/rs/zerolog/log"
 )
 

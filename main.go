@@ -12,10 +12,10 @@ import (
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
-	"./metrics"
-	"./providers/azure"
-	"./queue"
-	"./utils"
+	"github.com/soluto/dqd/metrics"
+	"github.com/soluto/dqd/providers/azure"
+	"github.com/soluto/dqd/queue"
+	"github.com/soluto/dqd/utils"
 )
 
 var logger = log.With().Str("scope", "Main").Logger()

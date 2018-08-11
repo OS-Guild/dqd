@@ -15,9 +15,9 @@ import (
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
-	"../../metrics"
-	"../../queue"
-	"../../utils"
+	"github.com/soluto/dqd/metrics"
+	"github.com/soluto/dqd/queue"
+	"github.com/soluto/dqd/utils"
 )
 
 const (

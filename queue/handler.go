@@ -10,7 +10,7 @@ import (
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
-	"../metrics"
+	"github.com/soluto/dqd/metrics"
 )
 
 // Handler handles queue messages.
