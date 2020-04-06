@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -8,14 +9,17 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"gopkg.in/eapache/go-resiliency.v1/retrier"
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
+	"github.com/soluto/dqd/handlers"
 	"github.com/soluto/dqd/metrics"
+	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/providers/azure"
-	"github.com/soluto/dqd/queue"
 	"github.com/soluto/dqd/utils"
+	v1 "github.com/soluto/dqd/v1"
 )
 
 var logger = log.With().Str("scope", "Main").Logger()
@@ -58,12 +62,17 @@ func main() {
 
 	waitForHealth()
 
-	queueClient := (&azure.AzureClientFactory{}).Create()
+	source := v1.NewSource(
+		&azure.AzureClientFactory{},
+		&azure.AzureClientFactory{},
+		viper.New(),
+		"test")
+
 	endpoint := utils.GetenvRequired("ENDPOINT")
 
-	offloader := queue.Offloader{
-		Client:                   queueClient,
-		Handler:                  queue.NewHandler(endpoint),
+	worker := pipe.Worker{
+		Source:                   source,
+		Handler:                  handlers.NewHttpHandler(endpoint),
 		FixedRate:                strings.ToLower(os.Getenv("USE_FIXED_RATE")) == "true",
 		ConcurrencyStartingPoint: utils.GetenvInt("CONCURRENCY_STARTING_POINT", 10),
 		MinConcurrency:           utils.GetenvInt("MIN_CONCURRENCY", 1),
@@ -71,5 +80,5 @@ func main() {
 
 	go metrics.Start(metricsPort)
 
-	offloader.Start(true)
+	worker.Start(context.Background())
 }

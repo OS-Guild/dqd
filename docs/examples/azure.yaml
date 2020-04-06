@@ -1,0 +1,5 @@
+azure:
+  account: "ddd"
+  queue: "ssss"
+  maxDequeueCount:
+  

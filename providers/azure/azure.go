@@ -2,22 +2,17 @@ package azure
 
 import (
 	"encoding/base64"
-	"encoding/xml"
 	"fmt"
-	"net/url"
-	"os"
-	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"gopkg.in/eapache/go-resiliency.v1/retrier"
-	"gopkg.in/h2non/gentleman.v2"
-	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
+	"github.com/Azure/azure-storage-queue-go/azqueue"
 
-	"github.com/soluto/dqd/metrics"
-	"github.com/soluto/dqd/queue"
+	"context"
+	"net/url"
+
 	"github.com/soluto/dqd/utils"
+	v1 "github.com/soluto/dqd/v1"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -26,39 +21,41 @@ const (
 
 // Message represents a message in a queue.
 type AzureMessage struct {
-	MessageID               string `xml:"MessageId"`
-	PopReceipt, MessageText string
-	DequeueCount            int64
-	AzureClient             *AzureClient
+	*azqueue.DequeuedMessage
+	AzureClient *AzureClient
 }
 
 type AzureClient struct {
-	Client          *httpClient
-	ErrorClient     *httpClient
-	MaxDequeueCount int64
+	messagesURL       azqueue.MessagesURL
+	MaxDequeueCount   int64
+	visibilityTimeout int64
 }
 
 func (m *AzureMessage) Data() string {
-	decoded, err := base64.StdEncoding.DecodeString(m.MessageText)
+	decoded, err := base64.StdEncoding.DecodeString(m.Text)
 	if err == nil {
 		return string(decoded)
 	}
-	return m.MessageText
+	return m.Text
 }
 
-func (m *AzureMessage) Done() {
-	m.AzureClient.Client.Delete(m)
+func (m *AzureMessage) Done() error {
+	res, err := m.AzureClient.messagesURL.NewMessageIDURL(azqueue.MessageID(m.Id())).Delete(context.Background(), azqueue.PopReceipt(m.PopReceipt))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode() < 400 {
+		return fmt.Errorf("error deleting message")
+	}
+	return nil
 }
 
 func (m *AzureMessage) Id() string {
-	return m.MessageID
+	return m.ID.String()
 }
 
-func (m *AzureMessage) Fail() {
-	if m.DequeueCount >= m.AzureClient.MaxDequeueCount {
-		m.AzureClient.Client.Delete(m)
-		m.AzureClient.ErrorClient.Post(m)
-	}
+func (m *AzureMessage) Retryable() bool {
+	return m.DequeueCount >= m.AzureClient.MaxDequeueCount
 }
 
 type ClientOptions struct {
@@ -67,209 +64,66 @@ type ClientOptions struct {
 	VisibilityTimeoutInSeconds     int64
 }
 
-type httpClient struct {
-	policy                        *retrier.Retrier
-	logger                        *zerolog.Logger
-	client                        *gentleman.Client
-	getPath, postPath, deletePath string
-	queueName                     string
+func (c *AzureClient) Produce(m v1.Message) {
+	c.messagesURL.Enqueue(context.Background(), m.Data(), time.Duration(0), time.Duration(0))
 }
 
-func (c *httpClient) Name() string {
-	return c.queueName
-}
-
-func (c *httpClient) Get() ([]AzureMessage, error) {
-	end := metrics.StartTimerWithLabels(metrics.GetMessagesSummary)
-	type QueueMessagesList struct {
-		QueueMessagesList xml.Name
-		QueueMessages     []AzureMessage `xml:"QueueMessage"`
-	}
-	l := new(QueueMessagesList)
-
-	c.logger.Debug().Msg("Start getting messages from queue")
-
-	err := c.policy.Run(func() error {
-		res, err := c.client.Get().URL(c.getPath).Send()
-		if err != nil {
-			return err
-		}
-		if !res.Ok {
-			return fmt.Errorf("Invalid server response: %d", res.StatusCode)
-		}
-		return xml.Unmarshal(res.Bytes(), l)
-	})
-
-	if err != nil {
-		c.logger.Warn().Err(err).Msg("Error getting messages from queue")
-		end("false")
-		return nil, err
-	}
-
-	count := len(l.QueueMessages)
-	c.logger.Debug().Int("count", count).Msg("Finished getting messages from queue")
-	metrics.MessageDequeueCount.Add(float64(count))
-	end("true")
-	return l.QueueMessages, nil
-}
-
-func (c *httpClient) Post(message *AzureMessage) error {
-	end := metrics.StartTimerWithLabels(metrics.PostMessagesSummary)
-	type QueueMessage struct {
-		MessageText string
-	}
-
-	log := c.logger.With().Str("messageId", message.MessageID).Logger()
-	log.Debug().Msg("Start posting message to queue")
-	m := &QueueMessage{message.MessageText}
-
-	output, err := xml.Marshal(m)
-	if err != nil {
-		log.Warn().Err(err).Msg("Error serializing message for post")
-		end("false")
-		return err
-	}
-
-	err = c.policy.Run(func() error {
-		res, err := c.client.Post().URL(c.postPath).JSON(output).Send()
-		if err != nil {
-			return err
-		}
-		if !res.Ok {
-			return fmt.Errorf("Invalid server response: %d", res.StatusCode)
-		}
-		return nil
-	})
-
-	if err != nil {
-		log.Warn().Err(err).Msg("Error posting message to queue")
-		end("false")
-	} else {
-		log.Debug().Msg("Finish posting message to queue")
-		end("true")
-	}
-
-	return err
-}
-
-func (c *httpClient) Delete(message *AzureMessage) error {
-	end := metrics.StartTimerWithLabels(metrics.DeleteMessagesSummary)
-	log := c.logger.With().Str("messageId", message.MessageID).Logger()
-	log.Debug().Msg("Start deleting message from queue")
-
-	path := fmt.Sprintf(c.deletePath, message.MessageID, url.QueryEscape(message.PopReceipt))
-
-	err := c.policy.Run(func() error {
-		res, err := c.client.Delete().URL(path).Send()
-		if err != nil {
-			return err
-		}
-		if !res.Ok && res.StatusCode != 404 {
-			return fmt.Errorf("Invalid server response: %d", res.StatusCode)
-		}
-		return nil
-	})
-
-	if err != nil {
-		log.Warn().Err(err).Msg("Error deleting message from queue")
-		end("false")
-	} else {
-		log.Debug().Msg("Finish deleting message from queue")
-		end("true")
-	}
-
-	return err
-}
-
-func (c *AzureClient) Iter(out chan queue.Message, stop chan bool) {
+func (c *AzureClient) Iter(ctx context.Context, out chan v1.Message) {
 main:
 	for {
 		select {
-		case <-stop:
+		case <-ctx.Done():
 			break main
 		default:
 		}
 
-		messages, err := c.Client.Get()
+		messages, err := c.messagesURL.Dequeue(context.Background(), 32, time.Duration(c.visibilityTimeout))
 		if err != nil {
 			break main
 		}
-		for _, m := range messages {
+		for i := int32(0); i < messages.NumMessages(); i++ {
 			select {
-			case <-stop:
+			case <-ctx.Done():
 				break main
 			default:
 			}
-			m.AzureClient = c
-			out <- &m
+			azM := messages.Message(i)
+			message := &AzureMessage{
+				azM,
+				c,
+			}
+			out <- message
 		}
 	}
 	close(out)
 }
 
-// create new client
-func newHttpClient(options *ClientOptions) *httpClient {
-	client := gentleman.New().
-		Use(timeout.Request(2 * time.Second * time.Duration(options.ServerTimeoutInSeconds)))
-	logger := log.With().Str("scope", "QueueClient").Str("queueName", options.Name).Logger()
+type AzureClientFactory struct{}
 
-	return &httpClient{
-		client:    client,
-		logger:    &logger,
-		queueName: options.Name,
-		policy:    retrier.New(retrier.ExponentialBackoff(5, time.Second), nil),
-		getPath: fmt.Sprintf("https://%s.queue.core.windows.net/%s/messages%s&numofmessages=32&visibilityTimeout=%d&timeout=%d",
-			options.StorageAccount,
-			options.Name,
-			options.SasToken,
-			options.VisibilityTimeoutInSeconds,
-			options.ServerTimeoutInSeconds),
-		postPath: fmt.Sprintf("https://%s.queue.core.windows.net/%s/messages%s&timeout=%d",
-			options.StorageAccount,
-			options.Name,
-			options.SasToken,
-			options.ServerTimeoutInSeconds),
-		deletePath: fmt.Sprintf("https://%s.queue.core.windows.net/%s/messages/%%s%s&popreceipt=%%s&timeout=%d",
-			options.StorageAccount,
-			options.Name,
-			strings.Replace(options.SasToken, "%", "%%", -1),
-			options.ServerTimeoutInSeconds),
+func createAuzreClient(cfg *viper.Viper) *AzureClient {
+	viper.SetDefault("visibilityTimeoutInSeconds", int64(600))
+	storageAccount := cfg.GetString("storageAccount")
+	queueName := cfg.GetString("queue")
+	sasToken := utils.GetenvOrFile("SAS_TOKEN", "SAS_TOKEN_FILE", true)
+	visibilityTimeout := cfg.GetInt64("visibilityTimeoutInSeconds")
+	pipeline := azqueue.NewPipeline(azqueue.NewAnonymousCredential(), azqueue.PipelineOptions{})
+	sURL := fmt.Sprintf("https://%s.queue.core.windows.net", storageAccount)
+	sURL = fmt.Sprintf("%s?%s", sURL, sasToken)
+	u, _ := url.Parse(sURL)
+
+	messagesURL := azqueue.NewServiceURL(*u, pipeline).NewQueueURL(queueName).NewMessagesURL()
+
+	return &AzureClient{
+		messagesURL:       messagesURL,
+		MaxDequeueCount:   5,
+		visibilityTimeout: visibilityTimeout,
 	}
 }
 
-type AzureClientFactory struct{}
+func (factory *AzureClientFactory) CreateConsumer(cfg *viper.Viper) v1.Consumer {
+	return createAuzreClient(cfg)
+}
 
-func (factory *AzureClientFactory) Create() queue.Client {
-
-	storageAccount := utils.GetenvRequired("STORAGE_ACCOUNT")
-	queueName := utils.GetenvRequired("QUEUE_NAME")
-	sasToken := utils.GetenvOrFile("SAS_TOKEN", "SAS_TOKEN_FILE", true)
-
-	errorQueueName := os.Getenv("ERROR_QUEUE_NAME")
-	if errorQueueName == "" {
-		errorQueueName = queueName + "-error"
-	}
-	errorSasToken := utils.GetenvOrFile("ERROR_SAS_TOKEN", "ERROR_SAS_TOKEN_FILE", false)
-	if errorSasToken == "" {
-		errorSasToken = sasToken
-	}
-	visibilityTimeout := utils.GetenvInt("VISIBILITY_TIMEOUT_IN_SECONDS", 600)
-
-	return &AzureClient{
-		Client: newHttpClient(&ClientOptions{
-			StorageAccount: storageAccount,
-			SasToken:       sasToken,
-			Name:           queueName,
-			ServerTimeoutInSeconds:     serverTimeout,
-			VisibilityTimeoutInSeconds: visibilityTimeout,
-		}),
-		ErrorClient: newHttpClient(&ClientOptions{
-			StorageAccount: storageAccount,
-			SasToken:       errorSasToken,
-			Name:           errorQueueName,
-			ServerTimeoutInSeconds:     serverTimeout,
-			VisibilityTimeoutInSeconds: visibilityTimeout,
-		}),
-		MaxDequeueCount: utils.GetenvInt("MAX_DEQUEUE_COUNT", 5),
-	}
+func (factory *AzureClientFactory) CreateProducer(cfg *viper.Viper) v1.Producer {
+	return createAuzreClient(cfg)
 }

@@ -1,43 +1,48 @@
-package queue
+package pipe
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
+	"github.com/soluto/dqd/handlers"
 	"github.com/soluto/dqd/metrics"
-	"github.com/rs/zerolog/log"
+	v1 "github.com/soluto/dqd/v1"
 )
 
-type Offloader struct {
-	Client                   Client
-	Handler                  Handler
+type Worker struct {
+	MaxDequeueCount          int64
+	Source, ErrorSource      v1.Source
+	Handler                  handlers.Handler
 	FixedRate                bool
 	ConcurrencyStartingPoint int64
 	MinConcurrency           int64
 }
 
-var offloadingLogger = log.With().Str("scope", "Offloader")
-
-func (o *Offloader) Offload(message Message) {
-	end := metrics.StartTimer(&metrics.OffloadSummary)
+func (o *Worker) Process(message v1.Message) {
+	end := metrics.StartTimer(metrics.OffloadHistogram)
 	err := o.Handler.Handle(message)
 	if err != nil {
-		message.Fail()
-	} else {
 		message.Done()
+		/*
+			if message.DequeueCount >= o.MaxDequeueCount {
+				o.Client.Delete(message)
+				o.ErrorClient.Post(message)
+			}*/
+	} else {
+		//o.Client.Delete(message)
 	}
-	end()
+	end(o.Source.Name)
 }
 
-func (o *Offloader) Start(wait bool) {
-	maxConcurrencyGauge := metrics.MaxConcurrencyGauge
-	batchSizeGauge := metrics.BatchSizeGauge
+func (o *Worker) Start(ctx context.Context) {
+	maxConcurrencyGauge := metrics.MaxConcurrencyGauge.WithLabelValues(o.Source.Name)
+	batchSizeGauge := metrics.BatchSizeGauge.WithLabelValues(o.Source.Name)
 
 	var count, lastBatch int64
 	maxItems := o.ConcurrencyStartingPoint
-	messages := make(chan Message, o.MinConcurrency)
-	stopThroughput := make(chan bool, 1)
-	stopIteration := make(chan bool, 1)
+	messages := make(chan v1.Message, o.MinConcurrency)
+	ctx, cancel := context.WithCancel(ctx)
 
 	maxConcurrencyGauge.Set(float64(maxItems))
 
@@ -50,8 +55,8 @@ func (o *Offloader) Start(wait bool) {
 
 			atomic.AddInt64(&count, 1)
 
-			go func(m Message) {
-				o.Offload(m)
+			go func(m v1.Message) {
+				o.Process(m)
 
 				atomic.AddInt64(&count, -1)
 				if !o.FixedRate {
@@ -60,19 +65,23 @@ func (o *Offloader) Start(wait bool) {
 			}(message)
 		}
 
-		stopThroughput <- true
+		cancel()
 	}()
 
 	// Handle throughput
 	if !o.FixedRate {
 		go func() {
 			var prev int64
+			cycleDuration := 30 * time.Second
+			timer := time.NewTimer(cycleDuration)
 			shouldUpscale := true
 			for {
+				timer.Reset(cycleDuration)
+
 				select {
-				case <-stopThroughput:
+				case <-ctx.Done():
 					return
-				case <-time.After(30 * time.Second):
+				case <-timer.C:
 				}
 
 				curr := atomic.SwapInt64(&lastBatch, 0)
@@ -95,6 +104,6 @@ func (o *Offloader) Start(wait bool) {
 			}
 		}()
 	}
-
-	o.Client.Iter(messages, stopIteration)
+	consumer := o.Source.CreateConsumer()
+	consumer.Iter(ctx, messages)
 }
