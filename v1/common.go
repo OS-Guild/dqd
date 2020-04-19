@@ -7,8 +7,8 @@ import (
 )
 
 type RawMessage struct {
-	id   string
-	data string
+	Id   string
+	Data string
 }
 
 type Message interface {
@@ -27,7 +27,7 @@ type ConsumerFactory interface {
 }
 
 type Producer interface {
-	Produce(m Message)
+	Produce(m RawMessage) error
 }
 
 type ProducerFactory interface {

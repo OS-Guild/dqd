@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -68,7 +69,7 @@ func StartTimer(h *prometheus.HistogramVec) func(...string) {
 	}
 }
 
-func Start(metricsPort string) {
+func Start(metricsPort int) {
 	prometheus.MustRegister(
 		MaxConcurrencyGauge,
 		BatchSizeGauge,
@@ -80,7 +81,7 @@ func Start(metricsPort string) {
 		MessageDequeueCount)
 
 	http.Handle("/metrics", promhttp.Handler())
-	err := http.ListenAndServe(":"+metricsPort, nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%v", metricsPort), nil)
 	if err != nil {
 		log.Error().Err(err).Str("scope", "Metrics").Msg("Failed starting prometheus service")
 	}

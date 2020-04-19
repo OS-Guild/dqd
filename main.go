@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -14,12 +15,8 @@ import (
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
-	"github.com/soluto/dqd/handlers"
+	"github.com/soluto/dqd/config"
 	"github.com/soluto/dqd/metrics"
-	"github.com/soluto/dqd/pipe"
-	"github.com/soluto/dqd/providers/azure"
-	"github.com/soluto/dqd/utils"
-	v1 "github.com/soluto/dqd/v1"
 )
 
 var logger = log.With().Str("scope", "Main").Logger()
@@ -52,33 +49,49 @@ func waitForHealth() {
 }
 
 func main() {
-	logLevel := utils.GetenvInt("LOG_LEVEL", 1)
+	println("init")
+	conf := viper.New()
+	conf.SetConfigName("config")
+	conf.SetConfigType("yaml")
+	conf.AddConfigPath(".")
+	conf.AddConfigPath("/config")
+	conf.SetDefault("logLevel", 1)
+	conf.SetDefault("metricsPort", 8888)
+	err := conf.ReadInConfig()
+	if err != nil {
+		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	}
+
+	logLevel := conf.GetInt("LOG_LEVEL")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 
-	metricsPort := os.Getenv("METRICS_PORT")
-	if metricsPort == "" {
-		metricsPort = "8888"
-	}
+	metricsPort := conf.GetInt("METRICS_PORT")
 
 	waitForHealth()
 
-	source := v1.NewSource(
-		&azure.AzureClientFactory{},
-		&azure.AzureClientFactory{},
-		viper.New(),
-		"test")
-
-	endpoint := utils.GetenvRequired("ENDPOINT")
-
-	worker := pipe.Worker{
-		Source:                   source,
-		Handler:                  handlers.NewHttpHandler(endpoint),
-		FixedRate:                strings.ToLower(os.Getenv("USE_FIXED_RATE")) == "true",
-		ConcurrencyStartingPoint: utils.GetenvInt("CONCURRENCY_STARTING_POINT", 10),
-		MinConcurrency:           utils.GetenvInt("MIN_CONCURRENCY", 1),
-	}
+	app := config.CreateApp(conf)
 
 	go metrics.Start(metricsPort)
 
-	worker.Start(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	for _, worker := range app.Workers {
+		go worker.Start(ctx)
+	}
+
+	for _, listeners := range app.Listeners {
+		go listeners.Listen()
+	}
+
+	select {
+	case <-c:
+		{
+
+		}
+	}
+
 }

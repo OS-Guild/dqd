@@ -5,10 +5,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/soluto/dqd/handlers"
 	"github.com/soluto/dqd/metrics"
 	v1 "github.com/soluto/dqd/v1"
 )
+
+var logger = log.With().Str("scope", "Worker").Logger()
 
 type Worker struct {
 	MaxDequeueCount          int64
@@ -23,14 +26,11 @@ func (o *Worker) Process(message v1.Message) {
 	end := metrics.StartTimer(metrics.OffloadHistogram)
 	err := o.Handler.Handle(message)
 	if err != nil {
-		message.Done()
-		/*
-			if message.DequeueCount >= o.MaxDequeueCount {
-				o.Client.Delete(message)
-				o.ErrorClient.Post(message)
-			}*/
+		if !message.Retryable() {
+			message.Done()
+		}
 	} else {
-		//o.Client.Delete(message)
+		message.Done()
 	}
 	end(o.Source.Name)
 }
@@ -104,6 +104,7 @@ func (o *Worker) Start(ctx context.Context) {
 			}
 		}()
 	}
+	logger.Info().Msg("Init worker")
 	consumer := o.Source.CreateConsumer()
 	consumer.Iter(ctx, messages)
 }

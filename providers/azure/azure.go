@@ -3,6 +3,7 @@ package azure
 import (
 	"encoding/base64"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
@@ -10,7 +11,6 @@ import (
 	"context"
 	"net/url"
 
-	"github.com/soluto/dqd/utils"
 	v1 "github.com/soluto/dqd/v1"
 	"github.com/spf13/viper"
 )
@@ -22,13 +22,13 @@ const (
 // Message represents a message in a queue.
 type AzureMessage struct {
 	*azqueue.DequeuedMessage
-	AzureClient *AzureClient
+	azureClient *azureClient
 }
 
-type AzureClient struct {
+type azureClient struct {
 	messagesURL       azqueue.MessagesURL
 	MaxDequeueCount   int64
-	visibilityTimeout int64
+	visibilityTimeout time.Duration
 }
 
 func (m *AzureMessage) Data() string {
@@ -40,7 +40,7 @@ func (m *AzureMessage) Data() string {
 }
 
 func (m *AzureMessage) Done() error {
-	res, err := m.AzureClient.messagesURL.NewMessageIDURL(azqueue.MessageID(m.Id())).Delete(context.Background(), azqueue.PopReceipt(m.PopReceipt))
+	res, err := m.azureClient.messagesURL.NewMessageIDURL(azqueue.MessageID(m.Id())).Delete(context.Background(), azqueue.PopReceipt(m.PopReceipt))
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (m *AzureMessage) Id() string {
 }
 
 func (m *AzureMessage) Retryable() bool {
-	return m.DequeueCount >= m.AzureClient.MaxDequeueCount
+	return m.DequeueCount >= m.azureClient.MaxDequeueCount
 }
 
 type ClientOptions struct {
@@ -64,27 +64,41 @@ type ClientOptions struct {
 	VisibilityTimeoutInSeconds     int64
 }
 
-func (c *AzureClient) Produce(m v1.Message) {
-	c.messagesURL.Enqueue(context.Background(), m.Data(), time.Duration(0), time.Duration(0))
+func (c *azureClient) Produce(m v1.RawMessage) error {
+	c.messagesURL.Enqueue(context.Background(), m.Data, time.Duration(0), time.Duration(0))
+	return nil
 }
 
-func (c *AzureClient) Iter(ctx context.Context, out chan v1.Message) {
-main:
+func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) {
+	defer close(out)
+	emptyCount := 0
 	for {
 		select {
 		case <-ctx.Done():
-			break main
+			return
 		default:
 		}
 
-		messages, err := c.messagesURL.Dequeue(context.Background(), 32, time.Duration(c.visibilityTimeout))
+		messages, err := c.messagesURL.Dequeue(context.Background(), 32, c.visibilityTimeout)
 		if err != nil {
-			break main
+			println("error", err)
+			panic("error reading from source")
 		}
+
+		messagesCount := messages.NumMessages()
+		if messagesCount == 0 {
+			multiplier := 1 << int(math.Min(float64(emptyCount), 6))
+			println(multiplier)
+			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
+			emptyCount++
+		} else {
+			emptyCount = 0
+		}
+
 		for i := int32(0); i < messages.NumMessages(); i++ {
 			select {
 			case <-ctx.Done():
-				break main
+				return
 			default:
 			}
 			azM := messages.Message(i)
@@ -95,35 +109,39 @@ main:
 			out <- message
 		}
 	}
-	close(out)
 }
 
-type AzureClientFactory struct{}
+type AzureQueueClientFactory struct{}
 
-func createAuzreClient(cfg *viper.Viper) *AzureClient {
-	viper.SetDefault("visibilityTimeoutInSeconds", int64(600))
+func createAuzreQueueClient(cfg *viper.Viper) *azureClient {
+	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
 	storageAccount := cfg.GetString("storageAccount")
 	queueName := cfg.GetString("queue")
-	sasToken := utils.GetenvOrFile("SAS_TOKEN", "SAS_TOKEN_FILE", true)
-	visibilityTimeout := cfg.GetInt64("visibilityTimeoutInSeconds")
+	sasToken := cfg.GetString("sasToken")
+	visibilityTimeout := time.Duration(cfg.GetInt64("visibilityTimeoutInSeconds")) * time.Second
 	pipeline := azqueue.NewPipeline(azqueue.NewAnonymousCredential(), azqueue.PipelineOptions{})
-	sURL := fmt.Sprintf("https://%s.queue.core.windows.net", storageAccount)
-	sURL = fmt.Sprintf("%s?%s", sURL, sasToken)
+	var sURL string
+	if storageAccount != "" {
+		sURL = fmt.Sprintf("https://%s.queue.core.windows.net", storageAccount)
+	} else {
+		sURL = cfg.GetString("connection")
+	}
+	sURL = fmt.Sprintf("%s%s", sURL, sasToken)
 	u, _ := url.Parse(sURL)
 
 	messagesURL := azqueue.NewServiceURL(*u, pipeline).NewQueueURL(queueName).NewMessagesURL()
 
-	return &AzureClient{
+	return &azureClient{
 		messagesURL:       messagesURL,
 		MaxDequeueCount:   5,
 		visibilityTimeout: visibilityTimeout,
 	}
 }
 
-func (factory *AzureClientFactory) CreateConsumer(cfg *viper.Viper) v1.Consumer {
-	return createAuzreClient(cfg)
+func (factory *AzureQueueClientFactory) CreateConsumer(cfg *viper.Viper) v1.Consumer {
+	return createAuzreQueueClient(cfg)
 }
 
-func (factory *AzureClientFactory) CreateProducer(cfg *viper.Viper) v1.Producer {
-	return createAuzreClient(cfg)
+func (factory *AzureQueueClientFactory) CreateProducer(cfg *viper.Viper) v1.Producer {
+	return createAuzreQueueClient(cfg)
 }

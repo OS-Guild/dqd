@@ -1,0 +1,12 @@
+sources:
+  messages:
+    type: azure-queue
+    sasToken: "?st=2020-04-19T07%3A49%3A05Z&se=2020-05-20T07%3A49%3A00Z&sp=raup&sv=2018-03-28&sig=q4LxA5ALHqoknoHBdFgLJfrJ4E%2B3mlG0Qt231I3UA3s%3D"
+    connection: http://azure:10001/devstoreaccount1
+    queue: dqd
+pipes:
+  - source: messages
+    http:
+      path: "/"
+    rate:
+      static: true

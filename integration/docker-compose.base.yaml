@@ -1,0 +1,13 @@
+version: "3.7"
+configs: 
+  c:
+    file: "./providers/azure-local/config.yaml"
+
+services: 
+  dqd:
+    build: ".."
+    volumes: 
+    - ./providers/azure-local/config.yaml:/config.yaml
+    configs: 
+    - source: c
+      target: /config/config.yaml

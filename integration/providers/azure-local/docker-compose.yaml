@@ -1,0 +1,13 @@
+version: "3.7"
+
+services: 
+  azure:
+    image: mcr.microsoft.com/azure-storage/azurite
+    volumes: 
+      - ./providers/azure-local/data:/data
+    ports: 
+    - "10001:10001"
+  dqd:
+    depends_on: 
+    - azure
+    
