@@ -1,0 +1,10 @@
+version: "3.7"
+
+services: 
+  producer:
+    build: "./producer"
+    network_mode: service:dqd
+    depends_on: 
+    - dqd
+    environment: 
+    - SOURCE=messages

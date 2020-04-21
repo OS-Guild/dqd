@@ -30,7 +30,8 @@ func Http(address string) Listener {
 
 func (h *HttpListener) Add(source v1.Source, options *viper.Viper) {
 	p := source.CreateProducer()
-	h.router.Methods("get").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	println("adding listener source %s", source.Name)
+	h.router.Methods("post").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		msg, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(500)

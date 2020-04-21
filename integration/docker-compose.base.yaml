@@ -1,13 +1,18 @@
 version: "3.7"
 configs: 
-  c:
+  conf:
     file: "./providers/azure-local/config.yaml"
 
 services: 
+  producer:
+    build: "./producer"
+    network_mode: service:dqd
+    environment: 
+    - SOURCE=messages
   dqd:
     build: ".."
     volumes: 
-    - ./providers/azure-local/config.yaml:/config.yaml
+    - ./providers/azure-local/config.yaml:/etc/dqd/config.yaml
     configs: 
-    - source: c
-      target: /config/config.yaml
+    - source: conf
+      target: /etc/dqd/config.yaml

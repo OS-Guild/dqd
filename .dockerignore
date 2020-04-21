@@ -1,5 +1,5 @@
-integration
+integration/**/*
 Dockerfile
-docs
-benchmark
+docs/**/*
+benchmark/**/*
 .vscode

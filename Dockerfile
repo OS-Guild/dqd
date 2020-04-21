@@ -13,12 +13,12 @@ RUN adduser \
     appuser 
 
 WORKDIR /src
-COPY go.mod .
-RUN go mod download
+COPY go.mod go.sum ./
+RUN go mod download 
 RUN go mod verify
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-w -s -extldflags "-static"' -a -o /go/bin/dqd
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /go/bin/dqd
 
 FROM scratch
 

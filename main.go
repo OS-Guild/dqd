@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	gofigure "github.com/NCAR/go-figure"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -51,16 +52,15 @@ func waitForHealth() {
 func main() {
 	println("init")
 	conf := viper.New()
-	conf.SetConfigName("config")
-	conf.SetConfigType("yaml")
-	conf.AddConfigPath(".")
-	conf.AddConfigPath("/config")
 	conf.SetDefault("logLevel", 1)
 	conf.SetDefault("metricsPort", 8888)
-	err := conf.ReadInConfig()
+	conf.AddConfigPath("/etc/dqd")
+
+	err := gofigure.Parse(conf, []string{"/config", "/etc/dqd"})
 	if err != nil {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
+	println(conf.GetBool("aaa"))
 
 	logLevel := conf.GetInt("LOG_LEVEL")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
