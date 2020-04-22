@@ -155,8 +155,20 @@ func createAuzreQueueClient(cfg *viper.Viper, logger *zerolog.Logger) *azureClie
 	storageAccount := cfg.GetString("storageAccount")
 	queueName := cfg.GetString("queue")
 	sasToken := cfg.GetString("sasToken")
+	accountKey := cfg.GetString("storageAccountKey")
 	visibilityTimeout := time.Duration(cfg.GetInt64("visibilityTimeoutInSeconds")) * time.Second
-	pipeline := azqueue.NewPipeline(azqueue.NewAnonymousCredential(), azqueue.PipelineOptions{
+
+	credentials := azqueue.NewAnonymousCredential()
+	if accountKey != "" && storageAccount != "" {
+		var err error
+		credentials, err = azqueue.NewSharedKeyCredential(storageAccount, accountKey)
+		if err != nil {
+			logger.Fatal().Msg("Error using SharedKeyCredentials")
+			panic("Error using SharedKeyCredentials")
+		}
+	}
+
+	pipeline := azqueue.NewPipeline(credentials, azqueue.PipelineOptions{
 		Log: pipeline.LogOptions{
 			Log: func(level pipeline.LogLevel, message string) {
 				logger.WithLevel(translateLogLevel(level)).Msg(message)
