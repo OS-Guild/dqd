@@ -1,0 +1,20 @@
+version: "3.7"
+
+services: 
+  sqs:
+    container_name: sqs
+    image: roribio16/alpine-sqs
+    #logging: 
+    #  driver: none
+    ports: 
+    - "9325:9325"
+  dqd:
+    depends_on: 
+    - sqs
+    environment: 
+    - AWS_REGION=us-east-1
+    - AWS_ACCESS_KEY_ID=""
+    - AWS_SECRET_ACCESS_KEY=""
+    volumes: 
+    - ./providers/sqs-local/config.yaml:/etc/dqd/sqs.yaml
+    

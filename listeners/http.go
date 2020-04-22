@@ -41,6 +41,7 @@ func (h *HttpListener) Add(source v1.Source, options *viper.Viper) {
 			Id:   uuid.New().String(),
 		})
 		if err != nil {
+			logger.Warn().Err(err).Msg("Error producing item")
 			w.WriteHeader(500)
 			return
 		}

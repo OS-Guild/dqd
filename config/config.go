@@ -7,6 +7,7 @@ import (
 	"github.com/soluto/dqd/listeners"
 	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/providers/azure"
+	"github.com/soluto/dqd/providers/sqs"
 	"github.com/soluto/dqd/utils"
 	v1 "github.com/soluto/dqd/v1"
 	"github.com/spf13/viper"
@@ -25,6 +26,10 @@ var sourceProviders = map[string]struct {
 	"azure-queue": {
 		&azure.AzureQueueClientFactory{},
 		&azure.AzureQueueClientFactory{},
+	},
+	"sqs": {
+		&sqs.SQSClientFactory{},
+		&sqs.SQSClientFactory{},
 	},
 }
 
@@ -56,8 +61,14 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 		if httpEndpoint == "" {
 			httpEndpoint = fmt.Sprintf("http://%v:%v%v", pipeConfig.GetString("http.host"), pipeConfig.GetString("http.port"), pipeConfig.GetString("http.path"))
 		}
+
+		source, exists := sources[pipeConfig.GetString("source")]
+		if !exists {
+			panic(fmt.Sprintf("missing source definition: %v", source.Name))
+		}
+
 		wList = append(wList, pipe.NewWorker(
-			sources[pipeConfig.GetString("source")],
+			source,
 			handlers.NewHttpHandler(httpEndpoint),
 			pipe.WorkerOptions{
 				FixedRate:                pipeConfig.GetBool("rate.static"),

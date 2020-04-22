@@ -34,9 +34,13 @@ func createInt64Ref(x int64) *int64 {
 }
 
 func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
-
-	svc := sqs.New(session.New(), aws.NewConfig().WithRegion(cfg.GetString("region")))
-
+	config := aws.NewConfig().WithRegion(cfg.GetString("region"))
+	endpoint := cfg.GetString("endpoint")
+	if endpoint != "" {
+		config.Endpoint = &endpoint
+	}
+	svc := sqs.New(session.New(), config)
+	println(cfg.GetString("url"))
 	return &SQSClient{
 		*svc,
 		cfg.GetString("url"),
@@ -75,26 +79,35 @@ Main:
 			break Main
 		default:
 		}
-		var maxMessages int64 = 0
+		var maxMessages int64 = 10
 		messages, err := c.sqs.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl:            &c.url,
 			MaxNumberOfMessages: &maxMessages,
 		})
 
 		if err != nil {
-			return err
+			c.logger.Debug().Err(err).Msg("Error reading from queue")
+			backoffCount++
+			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
+			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
+			if backoffCount >= 10 {
+				return err
+			}
+			continue Main
 		}
 		messagesCount := len(messages.Messages)
 
 		if messagesCount == 0 {
 			c.logger.Debug().Msg("Reached empty queue")
+			backoffCount++
 			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
 			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
 			backoffCount++
-			if backoffCount >= 15 || err != nil {
-				return err
-			}
 			continue Main
+		}
+
+		if backoffCount > 0 {
+
 		}
 
 		backoffCount = 0
@@ -117,8 +130,8 @@ Main:
 
 func (c *SQSClient) Produce(context context.Context, m v1.RawMessage) error {
 	_, err := c.sqs.SendMessage(&sqs.SendMessageInput{
-		MessageBody:            &m.Data,
-		MessageDeduplicationId: &m.Id,
+		MessageBody: &m.Data,
+		QueueUrl:    &c.url,
 	})
 	return err
 }
