@@ -1,0 +1,6 @@
+pipes:
+- source: messages
+  http:
+    path: "/"
+  rate:
+    window: 10s

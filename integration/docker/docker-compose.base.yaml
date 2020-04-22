@@ -1,0 +1,7 @@
+version: "3.7"
+
+services: 
+  dqd:
+    build: "../.."
+    volumes: 
+    - ./pipes.yaml:/etc/dqd/pipes.yaml

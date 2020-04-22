@@ -17,5 +17,7 @@ RUN chmod +x entry.sh
 
 ENV TARGET=http://localhost:9999
 ENV DATA="{""test"": ""abcd""}"
+ENV MESSAGES_COUNT=1000
+ENV DURATION=10s
 
 ENTRYPOINT [ "/entry.sh" ]

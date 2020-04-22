@@ -8,3 +8,4 @@ services:
     - dqd
     environment: 
     - SOURCE=messages
+    - MESSAGES_COUNT

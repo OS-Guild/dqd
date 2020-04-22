@@ -47,6 +47,8 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 	for _, pipeConfig := range pipesConfig {
 		pipeConfig.SetDefault("rate.init", 10)
 		pipeConfig.SetDefault("rate.min", 1)
+		pipeConfig.SetDefault("rate.static", false)
+		pipeConfig.SetDefault("rate.window", "30s")
 		pipeConfig.SetDefault("http.path", "/")
 		pipeConfig.SetDefault("http.host", "localhost")
 		pipeConfig.SetDefault("http.port", 80)
@@ -54,19 +56,24 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 		if httpEndpoint == "" {
 			httpEndpoint = fmt.Sprintf("http://%v:%v%v", pipeConfig.GetString("http.host"), pipeConfig.GetString("http.port"), pipeConfig.GetString("http.path"))
 		}
-		wList = append(wList, &pipe.Worker{
-			Source:                   sources[pipeConfig.GetString("source")],
-			Handler:                  handlers.NewHttpHandler(httpEndpoint),
-			FixedRate:                pipeConfig.GetBool("rate.static"),
-			ConcurrencyStartingPoint: pipeConfig.GetInt64("rate.init"),
-			MinConcurrency:           pipeConfig.GetInt64("rate.min"),
-		})
+		wList = append(wList, pipe.NewWorker(
+			sources[pipeConfig.GetString("source")],
+			handlers.NewHttpHandler(httpEndpoint),
+			pipe.WorkerOptions{
+				FixedRate:                pipeConfig.GetBool("rate.static"),
+				ConcurrencyStartingPoint: pipeConfig.GetInt64("rate.init"),
+				DynamicRateBatchWindow:   pipeConfig.GetDuration("rate.window"),
+				MinConcurrency:           pipeConfig.GetInt64("rate.min"),
+			},
+		))
 	}
 	return wList
 }
 
 func createListeners(v *viper.Viper, sources map[string]v1.Source) []listeners.Listener {
-	listener := listeners.Http("0.0.0.0:9999")
+	v.SetDefault("listeners.http.host", "0.0.0.0:9999")
+	host := v.GetString("listeners.http.host")
+	listener := listeners.Http(host)
 	for _, s := range sources {
 		listener.Add(s, viper.New())
 	}

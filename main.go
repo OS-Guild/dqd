@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	gofigure "github.com/NCAR/go-figure"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/soluto/dqd/config"
 	"github.com/soluto/dqd/metrics"
+	"github.com/soluto/dqd/utils"
 )
 
 var logger = log.With().Str("scope", "Main").Logger()
@@ -50,18 +49,16 @@ func waitForHealth() {
 }
 
 func main() {
-	println("init")
 	conf := viper.New()
+	conf.SetConfigType("yaml")
 	conf.SetDefault("logLevel", 1)
 	conf.SetDefault("metricsPort", 8888)
-	conf.AddConfigPath("/etc/dqd")
 
-	err := gofigure.Parse(conf, []string{"/config", "/etc/dqd"})
+	err := gofigure.Parse(conf, []string{"/etc/dqd", "/dqd/config"})
 	if err != nil {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
-	println(conf.GetBool("aaa"))
-
+	fmt.Println(len(conf.AllKeys()))
 	logLevel := conf.GetInt("LOG_LEVEL")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 
@@ -73,11 +70,7 @@ func main() {
 
 	go metrics.Start(metricsPort)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	ctx := utils.ContextWithSignal(context.Background())
 
 	for _, worker := range app.Workers {
 		go worker.Start(ctx)
@@ -88,10 +81,7 @@ func main() {
 	}
 
 	select {
-	case <-c:
-		{
-
-		}
+	case <-ctx.Done():
+		logger.Info().Msg("Shutting Down")
 	}
-
 }

@@ -4,10 +4,3 @@ sources:
     sasToken: "?st=2020-04-19T10%3A16%3A34Z&se=2023-01-01T06%3A00%3A00Z&sp=raup&sv=2018-03-28&sig=HyKAKdBk6k6LDMwUeFTVVkIf%2FuAlPz7pu85WxrtXgqU%3D"
     connection: http://azure:10001/devstoreaccount1
     queue: dqd
-pipes:
-  - source: messages
-    http:
-      path: "/"
-    rate:
-      static: true
-aaa: true

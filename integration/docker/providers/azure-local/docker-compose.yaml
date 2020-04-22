@@ -3,6 +3,8 @@ version: "3.7"
 services: 
   azure:
     image: mcr.microsoft.com/azure-storage/azurite
+    logging: 
+      driver: none
     volumes: 
       - ./providers/azure-local/data:/data
     ports: 
@@ -10,4 +12,6 @@ services:
   dqd:
     depends_on: 
     - azure
+    volumes: 
+    - ./providers/azure-local/config.yaml:/etc/dqd/azure.yaml
     

@@ -1,0 +1,10 @@
+version: "3.7"
+
+services: 
+  worker:
+    build: "./worker"
+    network_mode: service:dqd
+    depends_on: 
+    - dqd
+    environment: 
+    - MESSAGES_COUNT

@@ -3,6 +3,8 @@ package v1
 import (
 	"context"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -19,11 +21,11 @@ type Message interface {
 }
 
 type Consumer interface {
-	Iter(ctx context.Context, out chan Message)
+	Iter(ctx context.Context, out chan Message) error
 }
 
 type ConsumerFactory interface {
-	CreateConsumer(config *viper.Viper) Consumer
+	CreateConsumer(config *viper.Viper, logger *zerolog.Logger) Consumer
 }
 
 type Producer interface {
@@ -31,7 +33,7 @@ type Producer interface {
 }
 
 type ProducerFactory interface {
-	CreateProducer(config *viper.Viper) Producer
+	CreateProducer(config *viper.Viper, logger *zerolog.Logger) Producer
 }
 
 type Source struct {
@@ -51,9 +53,17 @@ func NewSource(cf ConsumerFactory, pf ProducerFactory, config *viper.Viper, name
 }
 
 func (s Source) CreateConsumer() Consumer {
-	return s.consumerFactory.CreateConsumer(s.config)
+	l := log.With().Fields(map[string]interface{}{
+		"scope":  "Consumer",
+		"source": s.Name,
+	}).Logger()
+	return s.consumerFactory.CreateConsumer(s.config, &l)
 }
 
 func (s Source) CreateProducer() Producer {
-	return s.producerFactory.CreateProducer(s.config)
+	l := log.With().Fields(map[string]interface{}{
+		"scope":  "Consumer",
+		"source": s.Name,
+	}).Logger()
+	return s.producerFactory.CreateProducer(s.config, &l)
 }

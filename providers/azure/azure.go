@@ -6,7 +6,9 @@ import (
 	"math"
 	"time"
 
+	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-queue-go/azqueue"
+	"github.com/rs/zerolog"
 
 	"context"
 	"net/url"
@@ -29,6 +31,7 @@ type azureClient struct {
 	messagesURL       azqueue.MessagesURL
 	MaxDequeueCount   int64
 	visibilityTimeout time.Duration
+	logger            *zerolog.Logger
 }
 
 func (m *AzureMessage) Data() string {
@@ -47,6 +50,10 @@ func (m *AzureMessage) Done() error {
 	if res.StatusCode() < 400 {
 		return fmt.Errorf("error deleting message")
 	}
+	return nil
+}
+
+func (m *AzureMessage) Abort() error {
 	return nil
 }
 
@@ -69,36 +76,43 @@ func (c *azureClient) Produce(m v1.RawMessage) error {
 	return nil
 }
 
-func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) {
+func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) error {
 	defer close(out)
-	emptyCount := 0
+	backoffCount := 0
+	multiplier := 0
+
+Main:
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			break Main
 		default:
 		}
 
+		var messagesCount int32 = 0
 		messages, err := c.messagesURL.Dequeue(context.Background(), 32, c.visibilityTimeout)
 		if err != nil {
-			println("error", err)
-			panic("error reading from source")
+			return err
+		}
+		messagesCount = messages.NumMessages()
+
+		if messagesCount == 0 {
+			c.logger.Debug().Msg("Reached empty queue")
+			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
+			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
+			backoffCount++
+			if backoffCount >= 15 || err != nil {
+				return err
+			}
+			continue Main
 		}
 
-		messagesCount := messages.NumMessages()
-		if messagesCount == 0 {
-			multiplier := 1 << int(math.Min(float64(emptyCount), 6))
-			println(multiplier)
-			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
-			emptyCount++
-		} else {
-			emptyCount = 0
-		}
+		backoffCount = 0
 
 		for i := int32(0); i < messages.NumMessages(); i++ {
 			select {
 			case <-ctx.Done():
-				return
+				break Main
 			default:
 			}
 			azM := messages.Message(i)
@@ -109,17 +123,52 @@ func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) {
 			out <- message
 		}
 	}
+	return nil
 }
 
-type AzureQueueClientFactory struct{}
+type AzureQueueClientFactory struct {
+	Logger *zerolog.Logger
+}
 
-func createAuzreQueueClient(cfg *viper.Viper) *azureClient {
+func translateLogLevel(l pipeline.LogLevel) zerolog.Level {
+	switch l {
+	case pipeline.LogDebug:
+		return zerolog.DebugLevel
+	case pipeline.LogError:
+		return zerolog.ErrorLevel
+	case pipeline.LogFatal:
+		return zerolog.FatalLevel
+	case pipeline.LogInfo:
+		return zerolog.InfoLevel
+	case pipeline.LogNone:
+		return zerolog.Disabled
+	case pipeline.LogPanic:
+		return zerolog.PanicLevel
+	case pipeline.LogWarning:
+		return zerolog.WarnLevel
+	}
+	return zerolog.Disabled
+}
+
+func createAuzreQueueClient(cfg *viper.Viper, logger *zerolog.Logger) *azureClient {
 	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
 	storageAccount := cfg.GetString("storageAccount")
 	queueName := cfg.GetString("queue")
 	sasToken := cfg.GetString("sasToken")
 	visibilityTimeout := time.Duration(cfg.GetInt64("visibilityTimeoutInSeconds")) * time.Second
-	pipeline := azqueue.NewPipeline(azqueue.NewAnonymousCredential(), azqueue.PipelineOptions{})
+	pipeline := azqueue.NewPipeline(azqueue.NewAnonymousCredential(), azqueue.PipelineOptions{
+		Log: pipeline.LogOptions{
+			Log: func(level pipeline.LogLevel, message string) {
+				logger.WithLevel(translateLogLevel(level)).Msg(message)
+			},
+		},
+		Retry: azqueue.RetryOptions{
+			Policy:     azqueue.RetryPolicyExponential,
+			MaxTries:   4,
+			TryTimeout: 30 * time.Second,
+		},
+	})
+
 	var sURL string
 	if storageAccount != "" {
 		sURL = fmt.Sprintf("https://%s.queue.core.windows.net", storageAccount)
@@ -135,13 +184,14 @@ func createAuzreQueueClient(cfg *viper.Viper) *azureClient {
 		messagesURL:       messagesURL,
 		MaxDequeueCount:   5,
 		visibilityTimeout: visibilityTimeout,
+		logger:            logger,
 	}
 }
 
-func (factory *AzureQueueClientFactory) CreateConsumer(cfg *viper.Viper) v1.Consumer {
-	return createAuzreQueueClient(cfg)
+func (factory *AzureQueueClientFactory) CreateConsumer(cfg *viper.Viper, logger *zerolog.Logger) v1.Consumer {
+	return createAuzreQueueClient(cfg, logger)
 }
 
-func (factory *AzureQueueClientFactory) CreateProducer(cfg *viper.Viper) v1.Producer {
-	return createAuzreQueueClient(cfg)
+func (factory *AzureQueueClientFactory) CreateProducer(cfg *viper.Viper, logger *zerolog.Logger) v1.Producer {
+	return createAuzreQueueClient(cfg, logger)
 }
