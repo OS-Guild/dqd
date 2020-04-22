@@ -62,6 +62,7 @@ func (w *Worker) Start(ctx context.Context) {
 	var count, lastBatch int64
 	maxItems := w.options.ConcurrencyStartingPoint
 	messages := make(chan v1.Message, w.options.MinConcurrency)
+	defer close(messages)
 
 	maxConcurrencyGauge.Set(float64(maxItems))
 
@@ -130,6 +131,7 @@ func (w *Worker) Start(ctx context.Context) {
 	logger.Info().Msg("Init worker")
 	consumer := w.source.CreateConsumer()
 	err := consumer.Iter(ctx, messages)
+
 	if err != nil {
 		panic(fmt.Sprintf("error reading from source", err))
 	}

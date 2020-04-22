@@ -71,13 +71,12 @@ type ClientOptions struct {
 	VisibilityTimeoutInSeconds     int64
 }
 
-func (c *azureClient) Produce(m v1.RawMessage) error {
-	c.messagesURL.Enqueue(context.Background(), m.Data, time.Duration(0), time.Duration(0))
-	return nil
+func (c *azureClient) Produce(context context.Context, m v1.RawMessage) error {
+	_, err := c.messagesURL.Enqueue(context, m.Data, time.Duration(0), time.Duration(0))
+	return err
 }
 
 func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) error {
-	defer close(out)
 	backoffCount := 0
 	multiplier := 0
 
@@ -89,12 +88,11 @@ Main:
 		default:
 		}
 
-		var messagesCount int32 = 0
 		messages, err := c.messagesURL.Dequeue(context.Background(), 32, c.visibilityTimeout)
 		if err != nil {
 			return err
 		}
-		messagesCount = messages.NumMessages()
+		messagesCount := messages.NumMessages()
 
 		if messagesCount == 0 {
 			c.logger.Debug().Msg("Reached empty queue")
@@ -124,10 +122,6 @@ Main:
 		}
 	}
 	return nil
-}
-
-type AzureQueueClientFactory struct {
-	Logger *zerolog.Logger
 }
 
 func translateLogLevel(l pipeline.LogLevel) zerolog.Level {
@@ -198,6 +192,9 @@ func createAuzreQueueClient(cfg *viper.Viper, logger *zerolog.Logger) *azureClie
 		visibilityTimeout: visibilityTimeout,
 		logger:            logger,
 	}
+}
+
+type AzureQueueClientFactory struct {
 }
 
 func (factory *AzureQueueClientFactory) CreateConsumer(cfg *viper.Viper, logger *zerolog.Logger) v1.Consumer {

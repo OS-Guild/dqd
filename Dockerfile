@@ -20,11 +20,11 @@ COPY . .
 
 RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /go/bin/dqd
 
-FROM alpine:3.10.1
+FROM scratch
 
-#COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go/bin/dqd /dqd
-#COPY --from=builder /etc/passwd /etc/passwd
-#COPY --from=builder /etc/group /etc/group
-#USER appuser:appuser
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
+USER appuser:appuser
 ENTRYPOINT ["/dqd"]

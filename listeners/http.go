@@ -1,24 +1,23 @@
 package listeners
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog/log"
 	v1 "github.com/soluto/dqd/v1"
 	"github.com/spf13/viper"
 )
 
-type Dispose func() error
-
-type Listener interface {
-	Add(source v1.Source, options *viper.Viper)
-	Listen() (Dispose, error)
-}
+var logger = log.With().Str("scope", "HttpListener").Logger()
 
 type HttpListener struct {
 	address string
 	router  *mux.Router
+	context context.Context
 }
 
 func Http(address string) Listener {
@@ -30,15 +29,16 @@ func Http(address string) Listener {
 
 func (h *HttpListener) Add(source v1.Source, options *viper.Viper) {
 	p := source.CreateProducer()
-	println("adding listener source %s", source.Name)
+	logger.Info().Str("source", source.Name).Msg("adding source route")
 	h.router.Methods("post").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		msg, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(500)
 			return
 		}
-		err = p.Produce(v1.RawMessage{
+		err = p.Produce(h.context, v1.RawMessage{
 			Data: string(msg),
+			Id:   uuid.New().String(),
 		})
 		if err != nil {
 			w.WriteHeader(500)
@@ -47,14 +47,19 @@ func (h *HttpListener) Add(source v1.Source, options *viper.Viper) {
 	})
 }
 
-func (h *HttpListener) Listen() (Dispose, error) {
+func (h *HttpListener) Listen(ctx context.Context) error {
 	srv := &http.Server{Addr: h.address}
+	h.context = ctx
+	e := make(chan error, 1)
 	go func() {
 		srv.Handler = h.router
-		srv.ListenAndServe()
+		e <- srv.ListenAndServe()
 	}()
-	return func() error {
-		err := srv.Close()
+
+	select {
+	case err := <-e:
 		return err
-	}, nil
+	case <-ctx.Done():
+		return nil
+	}
 }

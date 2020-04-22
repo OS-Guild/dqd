@@ -77,7 +77,7 @@ func main() {
 	}
 
 	for _, listeners := range app.Listeners {
-		go listeners.Listen()
+		go listeners.Listen(ctx)
 	}
 
 	select {

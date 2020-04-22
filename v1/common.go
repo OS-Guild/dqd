@@ -29,7 +29,7 @@ type ConsumerFactory interface {
 }
 
 type Producer interface {
-	Produce(m RawMessage) error
+	Produce(context context.Context, m RawMessage) error
 }
 
 type ProducerFactory interface {

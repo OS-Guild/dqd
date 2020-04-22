@@ -3,12 +3,15 @@ module github.com/soluto/dqd
 go 1.14
 
 require (
+	github.com/Azure/azure-pipeline-go v0.1.8
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/NCAR/go-figure v0.0.0-20181011044936-3924b68896e8
+	github.com/aws/aws-sdk-go v1.30.12
 	github.com/c2h5oh/datasize v0.0.0-20200112174442-28bbd4740fee // indirect
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/influxdata/tdigest v0.0.1 // indirect
-	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a
+	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a // indirect
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect
 	github.com/prometheus/client_golang v1.5.1
