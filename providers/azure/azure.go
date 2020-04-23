@@ -3,11 +3,11 @@ package azure
 import (
 	"encoding/base64"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-queue-go/azqueue"
+	"github.com/jpillora/backoff"
 	"github.com/rs/zerolog"
 
 	"context"
@@ -77,8 +77,7 @@ func (c *azureClient) Produce(context context.Context, m v1.RawMessage) error {
 }
 
 func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) error {
-	backoffCount := 0
-	multiplier := 0
+	backoff := &backoff.Backoff{}
 
 Main:
 	for {
@@ -96,13 +95,10 @@ Main:
 
 		if messagesCount == 0 {
 			c.logger.Debug().Msg("Reached empty queue")
-			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
-			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
-			backoffCount++
+			time.Sleep(backoff.Duration())
 			continue Main
 		}
-
-		backoffCount = 0
+		backoff.Reset()
 
 		for i := int32(0); i < messages.NumMessages(); i++ {
 			select {

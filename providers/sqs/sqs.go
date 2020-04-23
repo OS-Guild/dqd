@@ -2,12 +2,12 @@ package sqs
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/jpillora/backoff"
 	"github.com/rs/zerolog"
 	v1 "github.com/soluto/dqd/v1"
 	"github.com/spf13/viper"
@@ -69,9 +69,8 @@ func (m *SQSMessage) Retryable() bool {
 }
 
 func (c *SQSClient) Iter(ctx context.Context, out chan v1.Message) error {
-	backoffCount := 0
-	multiplier := 0
-
+	errorBackoff := &backoff.Backoff{}
+	emptyBackoff := &backoff.Backoff{}
 Main:
 	for {
 		select {
@@ -87,26 +86,20 @@ Main:
 
 		if err != nil {
 			c.logger.Debug().Err(err).Msg("Error reading from queue")
-			backoffCount++
-			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
-			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
-			if backoffCount >= 10 {
+			time.Sleep(errorBackoff.Duration())
+			if errorBackoff.Attempt() >= 10 {
 				return err
 			}
-			backoffCount++
 			continue Main
 		}
-		messagesCount := len(messages.Messages)
+		errorBackoff.Reset()
 
-		if messagesCount == 0 {
+		if len(messages.Messages) == 0 {
 			c.logger.Debug().Msg("Reached empty queue")
-			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
-			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
-			backoffCount++
+			time.Sleep(emptyBackoff.Duration())
 			continue Main
 		}
-
-		backoffCount = 0
+		emptyBackoff.Reset()
 
 		for _, sqsM := range messages.Messages {
 			select {
@@ -125,10 +118,25 @@ Main:
 }
 
 func (c *SQSClient) Produce(context context.Context, m v1.RawMessage) error {
-	_, err := c.sqs.SendMessage(&sqs.SendMessageInput{
-		MessageBody: &m.Data,
-		QueueUrl:    &c.url,
-	})
+	backoff := &backoff.Backoff{
+		Max: 10 * time.Second,
+		Min: 100 * time.Millisecond,
+	}
+	act := func() error {
+		_, err := c.sqs.SendMessage(&sqs.SendMessageInput{
+			MessageBody: &m.Data,
+			QueueUrl:    &c.url,
+		})
+		return err
+	}
+	err := act()
+	for err != nil {
+		err = act()
+		if backoff.Attempt() > 4 {
+			return err
+		}
+		time.Sleep(backoff.Duration())
+	}
 	return err
 }
 
