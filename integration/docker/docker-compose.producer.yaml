@@ -8,4 +8,4 @@ services:
     - dqd
     environment: 
     - SOURCE=messages
-    - MESSAGES_COUNT
+    - MESSAGES_COUNT=${MESSAGES_COUNT:-1000}
