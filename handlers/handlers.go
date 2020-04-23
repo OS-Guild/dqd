@@ -6,13 +6,47 @@ import (
 	v1 "github.com/soluto/dqd/v1"
 )
 
-// Handler handles queue messages.
-type Handler interface {
-	Handle(context.Context, v1.Message) error
+type HandlerErrorCode int
+
+type HandlerError interface {
+	error
+	Code() HandlerErrorCode
 }
 
-type FuncHandler func(context.Context, v1.Message) error
+type handlerError struct {
+	code  int
+	error error
+}
 
-func (f FuncHandler) Handle(c context.Context, m v1.Message) error {
+func (e *handlerError) Code() HandlerErrorCode {
+	return HandlerErrorCode(e.code)
+}
+
+func (e *handlerError) Error() string {
+	return e.error.Error()
+}
+
+func ServerError(err error) HandlerError {
+	return &handlerError{
+		5,
+		err,
+	}
+}
+
+func BadRequestError(err error) HandlerError {
+	return &handlerError{
+		4,
+		err,
+	}
+}
+
+// Handler handles queue messages.
+type Handler interface {
+	Handle(context.Context, v1.Message) HandlerError
+}
+
+type FuncHandler func(context.Context, v1.Message) HandlerError
+
+func (f FuncHandler) Handle(c context.Context, m v1.Message) HandlerError {
 	return f(c, m)
 }

@@ -17,12 +17,21 @@ type httpHandler struct {
 
 var handlerLogger = log.With().Str("scope", "Handler")
 
-func (h *httpHandler) Handle(ctx context.Context, message v1.Message) error {
+func (h *httpHandler) Handle(ctx context.Context, message v1.Message) HandlerError {
 	res, err := h.client.Post().JSON(message.Data()).Send()
-	if err == nil && res.ServerError {
-		err = fmt.Errorf("invalid server response: %d", res.StatusCode)
+
+	if err != nil {
+		return ServerError(err)
 	}
-	return err
+	if err == nil {
+		if res.ServerError {
+			return ServerError(fmt.Errorf("invalid server response: %d", res.StatusCode))
+		}
+		if res.ClientError {
+			return BadRequestError(fmt.Errorf("invalid client response: %d", res.StatusCode))
+		}
+	}
+	return nil
 }
 
 func NewHttpHandler(endpoint string) Handler {
