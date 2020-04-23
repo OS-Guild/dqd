@@ -67,9 +67,20 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 			panic(fmt.Sprintf("missing source definition: %v", source.Name))
 		}
 
+		handler := handlers.NewHttpHandler(httpEndpoint)
+
+		writeToSource := pipeConfig.GetString("onError.writeToSource")
+		if writeToSource != "" {
+			errorSource, exists := sources[pipeConfig.GetString("source")]
+			if !exists {
+				panic(fmt.Sprintf("missing source definition: %v", source.Name))
+			}
+			handler = handlers.NewWriteToSourceErrorHandler(handler, errorSource)
+		}
+
 		wList = append(wList, pipe.NewWorker(
 			source,
-			handlers.NewHttpHandler(httpEndpoint),
+			handler,
 			pipe.WorkerOptions{
 				FixedRate:                pipeConfig.GetBool("rate.static"),
 				ConcurrencyStartingPoint: pipeConfig.GetInt64("rate.init"),

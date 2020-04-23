@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,18 +11,13 @@ import (
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 )
 
-// Handler handles queue messages.
-type Handler interface {
-	Handle(v1.Message) error
-}
-
 type httpHandler struct {
 	client *gentleman.Client
 }
 
 var handlerLogger = log.With().Str("scope", "Handler")
 
-func (h *httpHandler) Handle(message v1.Message) error {
+func (h *httpHandler) Handle(ctx context.Context, message v1.Message) error {
 	res, err := h.client.Post().JSON(message.Data()).Send()
 	if err == nil && res.ServerError {
 		err = fmt.Errorf("invalid server response: %d", res.StatusCode)

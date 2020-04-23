@@ -16,8 +16,7 @@ import (
 var logger = log.With().Str("scope", "Worker").Logger()
 
 type WorkerOptions struct {
-	MaxDequeueCount int64
-
+	MaxDequeueCount          int64
 	FixedRate                bool
 	DynamicRateBatchWindow   time.Duration
 	ConcurrencyStartingPoint int64
@@ -41,9 +40,9 @@ func NewWorker(source v1.Source, handler handlers.Handler, opts WorkerOptions) *
 	}
 }
 
-func (w *Worker) Process(message v1.Message) {
+func (w *Worker) Process(ctx context.Context, message v1.Message) {
 	end := metrics.StartTimer(metrics.OffloadHistogram)
-	err := w.handler.Handle(message)
+	err := w.handler.Handle(ctx, message)
 	if err != nil {
 		logger.Warn().Err(err).Msg("error processing message")
 		if !message.Retryable() {
@@ -81,7 +80,7 @@ func (w *Worker) Start(ctx context.Context) {
 			atomic.AddInt64(&count, 1)
 
 			go func(m v1.Message) {
-				w.Process(m)
+				w.Process(ctx, m)
 
 				atomic.AddInt64(&count, -1)
 				if !w.options.FixedRate {
