@@ -138,7 +138,7 @@ func translateLogLevel(l pipeline.LogLevel) zerolog.Level {
 }
 
 func createAuzreQueueClient(cfg *viper.Viper, logger *zerolog.Logger) *azureClient {
-	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
+	cfg.SetDefault("visibilityTimeoutInSeconds", 60)
 	cfg.SetDefault("maxDequeueCount", 5)
 
 	storageAccount := cfg.GetString("storageAccount")

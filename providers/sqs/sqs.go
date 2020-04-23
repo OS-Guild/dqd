@@ -19,9 +19,10 @@ type Message struct {
 }
 
 type SQSClient struct {
-	sqs    sqs.SQS
-	url    string
-	logger *zerolog.Logger
+	sqs                        sqs.SQS
+	url                        string
+	visibilityTimeoutInSeconds int64
+	logger                     *zerolog.Logger
 }
 
 type SQSMessage struct {
@@ -34,16 +35,19 @@ func createInt64Ref(x int64) *int64 {
 }
 
 func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
-	config := aws.NewConfig().WithRegion(cfg.GetString("region"))
+	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
+	awsConfig := aws.NewConfig().WithRegion(cfg.GetString("region"))
 	endpoint := cfg.GetString("endpoint")
+	visibilityTimeoutInSeconds := cfg.GetInt64("visibilityTimeoutInSeconds")
 	if endpoint != "" {
-		config.Endpoint = &endpoint
+		awsConfig.Endpoint = &endpoint
 	}
-	svc := sqs.New(session.New(), config)
+	svc := sqs.New(session.New(), awsConfig)
 	println(cfg.GetString("url"))
 	return &SQSClient{
 		*svc,
 		cfg.GetString("url"),
+		visibilityTimeoutInSeconds,
 		logger,
 	}
 }
@@ -82,6 +86,7 @@ Main:
 		messages, err := c.sqs.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl:            &c.url,
 			MaxNumberOfMessages: &maxMessages,
+			VisibilityTimeout:   &c.visibilityTimeoutInSeconds,
 		})
 
 		if err != nil {

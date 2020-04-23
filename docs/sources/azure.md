@@ -14,6 +14,6 @@ source:
   sasToken: ****
 
   # Options
-  visibilityTimeoutInSeconds: 100 # defaults to 600
+  visibilityTimeoutInSeconds: 100 # defaults to 60
   maxDequeueCount: 1 # deaults to 5
 ``` 
