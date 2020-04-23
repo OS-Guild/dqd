@@ -93,21 +93,17 @@ Main:
 			if backoffCount >= 10 {
 				return err
 			}
+			backoffCount++
 			continue Main
 		}
 		messagesCount := len(messages.Messages)
 
 		if messagesCount == 0 {
 			c.logger.Debug().Msg("Reached empty queue")
-			backoffCount++
 			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
 			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
 			backoffCount++
 			continue Main
-		}
-
-		if backoffCount > 0 {
-
 		}
 
 		backoffCount = 0

@@ -99,9 +99,6 @@ Main:
 			multiplier = 1 << int(math.Min(float64(backoffCount), 6))
 			time.Sleep(time.Duration(multiplier) * 100 * time.Millisecond)
 			backoffCount++
-			if backoffCount >= 15 || err != nil {
-				return err
-			}
 			continue Main
 		}
 
