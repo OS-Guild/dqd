@@ -3,6 +3,7 @@ package pipe
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -41,22 +42,17 @@ func NewWorker(source v1.Source, handler handlers.Handler, opts WorkerOptions) *
 }
 
 func (w *Worker) Process(ctx context.Context, message v1.Message) {
-	end := metrics.StartTimer(metrics.OffloadHistogram)
-	err := w.handler.Handle(ctx, message)
+	end := metrics.StartTimer(metrics.WorkerProcessesMessagesHistogram)
+	var err error = w.handler.Handle(ctx, message)
 	if err != nil {
-		logger.Warn().Err(err).Msg("error processing message")
-		if !message.Retryable() {
-			message.Done()
-		}
-	} else {
-		message.Done()
+		log.Err(err).Msg("Error handling message")
 	}
-	end(w.source.Name)
+	end(w.source.Name, strconv.FormatBool(err != nil))
 }
 
 func (w *Worker) Start(ctx context.Context) {
-	maxConcurrencyGauge := metrics.MaxConcurrencyGauge.WithLabelValues(w.source.Name)
-	batchSizeGauge := metrics.BatchSizeGauge.WithLabelValues(w.source.Name)
+	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.source.Name)
+	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.source.Name)
 
 	var count, lastBatch int64
 	maxItems := w.options.ConcurrencyStartingPoint

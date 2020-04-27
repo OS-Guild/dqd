@@ -50,3 +50,18 @@ type FuncHandler func(context.Context, v1.Message) HandlerError
 func (f FuncHandler) Handle(c context.Context, m v1.Message) HandlerError {
 	return f(c, m)
 }
+
+func WorkerHandler(h Handler) Handler {
+	return FuncHandler(func(ctx context.Context, m v1.Message) HandlerError {
+		err := h.Handle(ctx, m)
+		if err != nil {
+			if m.Retryable() {
+				return nil
+			} else {
+				return err
+			}
+		}
+		m.Done()
+		return nil
+	})
+}

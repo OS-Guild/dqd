@@ -10,56 +10,24 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var queueLabels = []string{"queueName"}
-var MaxConcurrencyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: "offload",
+var WorkerMaxConcurrencyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "worker",
 	Subsystem: "concurrent",
 	Name:      "max",
 	Help:      "max concurrent messages",
-}, queueLabels)
-var BatchSizeGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-	Namespace: "offload",
+}, []string{"source"})
+var WorkerBatchSizeGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "worker",
 	Subsystem: "concurrent",
 	Name:      "size",
 	Help:      "concurrent message handling",
-}, queueLabels)
-var OffloadHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "offload",
-	Name:      "handle",
-	Help:      "offloading total handling histogram",
-}, queueLabels)
+}, []string{"source"})
 
-var messageHistogramLabels = []string{"queueName", "success"}
-var GetMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "get",
-	Help:      "histogram for get queue messages",
-}, messageHistogramLabels)
-var DeleteMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "delete",
-	Help:      "histogram for delete queue messages",
-}, messageHistogramLabels)
-var PostMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "post",
-	Help:      "histogram for post queue messages",
-}, messageHistogramLabels)
-var HandleMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "queue",
-	Subsystem: "message",
+var WorkerProcessesMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "worker",
 	Name:      "handle",
-	Help:      "histogram for handle queue messages",
-}, messageHistogramLabels)
-var MessageDequeueCount = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "dequeue_count",
-	Help:      "message dequeue counter",
-}, queueLabels)
+	Help:      "total processed messages",
+}, []string{"source", "success"})
 
 func StartTimer(h *prometheus.HistogramVec) func(...string) {
 	start := time.Now()
@@ -71,16 +39,13 @@ func StartTimer(h *prometheus.HistogramVec) func(...string) {
 
 func Start(metricsPort int) {
 	prometheus.MustRegister(
-		MaxConcurrencyGauge,
-		BatchSizeGauge,
-		OffloadHistogram,
-		GetMessagesHistogram,
-		DeleteMessagesHistogram,
-		PostMessagesHistogram,
-		HandleMessagesHistogram,
-		MessageDequeueCount)
+		WorkerProcessesMessagesHistogram,
+		WorkerBatchSizeGauge,
+		WorkerMaxConcurrencyGauge,
+	)
 
 	http.Handle("/metrics", promhttp.Handler())
+	println("listening port for metrics", metricsPort)
 	err := http.ListenAndServe(fmt.Sprintf(":%v", metricsPort), nil)
 	if err != nil {
 		log.Error().Err(err).Str("scope", "Metrics").Msg("Failed starting prometheus service")

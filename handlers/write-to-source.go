@@ -11,13 +11,13 @@ func NewWriteToSourceErrorHandler(handler Handler, source v1.Source) Handler {
 	return FuncHandler(func(ctx context.Context, m v1.Message) HandlerError {
 		err := handler.Handle(ctx, m)
 		if err != nil {
-			return err
+			if p.Produce(ctx, v1.RawMessage{
+				Data: m.Data(),
+			}) != nil {
+				return err
+			}
 		}
-		if p.Produce(ctx, v1.RawMessage{
-			Data: m.Data(),
-		}) != nil {
-			return err
-		}
+		m.Done()
 		return nil
 	})
 }

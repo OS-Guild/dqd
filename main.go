@@ -59,10 +59,10 @@ func main() {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
 	fmt.Println(len(conf.AllKeys()))
-	logLevel := conf.GetInt("LOG_LEVEL")
+	logLevel := conf.GetInt("logLevel")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 
-	metricsPort := conf.GetInt("METRICS_PORT")
+	metricsPort := conf.GetInt("metricsPort")
 
 	waitForHealth()
 
