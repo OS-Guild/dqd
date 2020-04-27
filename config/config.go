@@ -67,7 +67,7 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 			panic(fmt.Sprintf("missing source definition: %v", source.Name))
 		}
 
-		handler := handlers.WorkerHandler(handlers.NewHttpHandler(httpEndpoint), source)
+		handler := handlers.WorkerHandler(handlers.NewHttpHandler(httpEndpoint, source), source)
 
 		writeToSource := pipeConfig.GetString("onError.writeToSource")
 		if writeToSource != "" {

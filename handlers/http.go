@@ -13,13 +13,13 @@ import (
 
 type httpHandler struct {
 	client *gentleman.Client
+	source v1.Source
 }
 
 var handlerLogger = log.With().Str("scope", "Handler")
 
 func (h *httpHandler) Handle(ctx context.Context, message v1.Message) HandlerError {
 	res, err := h.client.Post().JSON(message.Data()).Send()
-
 	if err != nil {
 		return ServerError(err)
 	}
@@ -34,12 +34,13 @@ func (h *httpHandler) Handle(ctx context.Context, message v1.Message) HandlerErr
 	return nil
 }
 
-func NewHttpHandler(endpoint string) Handler {
+func NewHttpHandler(endpoint string, source v1.Source) Handler {
 	client := gentleman.New().
 		URL(endpoint).
-		Use(timeout.Request(2 * time.Minute))
+		Use(timeout.Request(2*time.Minute)).AddHeader("x-dqd-source", source.Name)
 
 	return &httpHandler{
-		client: client,
+		client,
+		source,
 	}
 }

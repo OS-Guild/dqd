@@ -21,11 +21,14 @@ func main() {
 	ec := viper.GetInt64("MESSAGES_COUNT")
 	fmt.Printf("Expecting %v messages", ec)
 	router := mux.NewRouter()
-	c := int64(0)
+	n := int64(0)
+	t := int64(0)
 	m := make(chan bool)
 	router.Methods("post").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m <- true
+		mNumber := atomic.AddInt64(&n, 1)
 		body, _ := ioutil.ReadAll(r.Body)
+		fmt.Printf("got %v:%v:%v", mNumber, r.Header.Get("x-dqd-source"), string(body))
 		time.Sleep(100 * time.Millisecond)
 		sErrRate := r.URL.Query().Get("error")
 		if sErrRate != "" {
@@ -36,10 +39,10 @@ func main() {
 			}
 		}
 		w.WriteHeader(200)
-		p := atomic.AddInt64(&c, 1)
-		fmt.Printf("handled message %v: %v", p, string(body))
-		if p != -1 && p >= ec {
-			os.Exit(0)
+		p := atomic.AddInt64(&t, 1)
+		fmt.Printf("handled %v message\n", p)
+		if p != -1 && p == ec {
+			time.AfterFunc(1*time.Second, func() { os.Exit(0) })
 		}
 	})
 	println("Listening")
