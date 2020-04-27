@@ -36,9 +36,9 @@ func main() {
 			}
 		}
 		w.WriteHeader(200)
-		atomic.AddInt64(&c, 1)
-		fmt.Printf("handled message %v: %v", c, string(body))
-		if c != -1 && c >= ec {
+		p := atomic.AddInt64(&c, 1)
+		fmt.Printf("handled message %v: %v", p, string(body))
+		if p != -1 && p >= ec {
 			os.Exit(0)
 		}
 	})
