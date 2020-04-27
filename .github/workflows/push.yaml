@@ -7,4 +7,7 @@ jobs:
       - name: test-azure
         working-directory: ./integration/tests
         run: ./naive-azure.sh
+      - name: test-sqs
+        working-directory: ./integration/tests
+        run: ./naive-sqs.sh
 
