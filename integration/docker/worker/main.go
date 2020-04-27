@@ -48,7 +48,7 @@ func main() {
 		for {
 			select {
 			case <-m:
-			case <-time.After(5 * time.Second):
+			case <-time.After(10 * time.Second):
 				os.Exit(1)
 			}
 		}
