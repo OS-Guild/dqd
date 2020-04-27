@@ -2,9 +2,14 @@ package handlers
 
 import (
 	"context"
+	"strconv"
 
+	"github.com/rs/zerolog/log"
+	"github.com/soluto/dqd/metrics"
 	v1 "github.com/soluto/dqd/v1"
 )
+
+var logger = log.With().Str("scope", "Handler").Logger()
 
 type HandlerErrorCode int
 
@@ -51,16 +56,19 @@ func (f FuncHandler) Handle(c context.Context, m v1.Message) HandlerError {
 	return f(c, m)
 }
 
-func WorkerHandler(h Handler) Handler {
+func WorkerHandler(h Handler, s v1.Source) Handler {
 	return FuncHandler(func(ctx context.Context, m v1.Message) HandlerError {
+		end := metrics.StartTimer(metrics.WorkerProcessesMessagesHistogram)
 		err := h.Handle(ctx, m)
 		if err != nil {
+			logger.Warn().Err(err).Msg("Error handling message")
 			if m.Retryable() {
 				return nil
 			} else {
 				return err
 			}
 		}
+		end(s.Name, strconv.FormatBool(err != nil))
 		m.Done()
 		return nil
 	})

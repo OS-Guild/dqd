@@ -58,7 +58,6 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
-	fmt.Println(len(conf.AllKeys()))
 	logLevel := conf.GetInt("logLevel")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 

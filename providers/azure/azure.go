@@ -62,7 +62,7 @@ func (m *AzureMessage) Id() string {
 }
 
 func (m *AzureMessage) Retryable() bool {
-	return m.DequeueCount >= m.azureClient.MaxDequeueCount
+	return m.DequeueCount < m.azureClient.MaxDequeueCount
 }
 
 type ClientOptions struct {

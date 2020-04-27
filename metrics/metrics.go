@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var logger = log.With().Str("scope", "Metrics").Logger()
+
 var WorkerMaxConcurrencyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "worker",
 	Subsystem: "concurrent",
@@ -45,9 +47,9 @@ func Start(metricsPort int) {
 	)
 
 	http.Handle("/metrics", promhttp.Handler())
-	println("listening port for metrics", metricsPort)
+	logger.Info().Msgf("listening port for metrics: %v", metricsPort)
 	err := http.ListenAndServe(fmt.Sprintf(":%v", metricsPort), nil)
 	if err != nil {
-		log.Error().Err(err).Str("scope", "Metrics").Msg("Failed starting prometheus service")
+		logger.Error().Err(err).Str("scope", "Metrics").Msg("Failed starting prometheus service")
 	}
 }

@@ -1,8 +1,0 @@
-pipes:
-- source: messages
-  http:
-    path: "/"
-  #onError:
-  #  writeToSource: messages-error
-  rate:
-    window: 10s

@@ -14,7 +14,6 @@ func ContextWithSignal(ctx context.Context) context.Context {
 	go func() {
 		select {
 		case <-signals:
-			println("captured signal")
 			cancel()
 		}
 	}()

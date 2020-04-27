@@ -43,7 +43,6 @@ func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 		awsConfig.Endpoint = &endpoint
 	}
 	svc := sqs.New(session.New(), awsConfig)
-	println(cfg.GetString("url"))
 	return &SQSClient{
 		*svc,
 		cfg.GetString("url"),

@@ -10,4 +10,6 @@ jobs:
       - name: test-sqs
         working-directory: ./integration/tests
         run: ./naive-sqs.sh
-
+      - name: azure-error-test
+        working-directory: ./integration/tests
+        run: ./error-azure.sh
