@@ -22,4 +22,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
           repository: soluto/dqd/app
-          tag_with_sha: true
+          tag_with_sha: ${{ github.ref == 'refs/heads/master'}}
+          tag_with_ref: ${{ github.ref != 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
