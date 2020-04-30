@@ -62,7 +62,7 @@ func WorkerHandler(h Handler, s v1.Source) Handler {
 		err := h.Handle(ctx, m)
 		if err != nil {
 			logger.Warn().Err(err).Msg("Error handling message")
-			if m.Retryable() {
+			if m.Abort() {
 				return nil
 			} else {
 				return err

@@ -53,15 +53,11 @@ func (m *AzureMessage) Done() error {
 	return nil
 }
 
-func (m *AzureMessage) Abort() error {
-	return nil
-}
-
 func (m *AzureMessage) Id() string {
 	return m.ID.String()
 }
 
-func (m *AzureMessage) Retryable() bool {
+func (m *AzureMessage) Abort() bool {
 	return m.DequeueCount < m.azureClient.MaxDequeueCount
 }
 

@@ -17,7 +17,7 @@ type Message interface {
 	Id() string
 	Data() string
 	Done() error
-	Retryable() bool
+	Abort() bool
 }
 
 type Consumer interface {

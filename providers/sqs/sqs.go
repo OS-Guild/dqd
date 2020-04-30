@@ -67,8 +67,8 @@ func (m *SQSMessage) Done() error {
 	return err
 }
 
-func (m *SQSMessage) Retryable() bool {
-	return false
+func (m *SQSMessage) Abort() bool {
+	return true
 }
 
 func (c *SQSClient) Iter(ctx context.Context, out chan v1.Message) error {
