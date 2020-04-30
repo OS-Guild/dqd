@@ -3,7 +3,6 @@ package pipe
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -42,12 +41,9 @@ func NewWorker(source v1.Source, handler handlers.Handler, opts WorkerOptions) *
 }
 
 func (w *Worker) Process(ctx context.Context, message v1.Message) {
-	end := metrics.StartTimer(metrics.WorkerProcessesMessagesHistogram)
-	var err error = w.handler.Handle(ctx, message)
-	if err != nil {
+	if err := w.handler.Handle(ctx, message); err != nil {
 		log.Err(err).Msg("Error handling message")
 	}
-	end(w.source.Name, strconv.FormatBool(err != nil))
 }
 
 func (w *Worker) Start(ctx context.Context) {
