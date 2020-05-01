@@ -5,7 +5,7 @@ jobs:
     steps:
 
       - uses: actions/checkout@v2
-      - run: apt-get install --no-install-recommends -y moby-buildx
+      - run: sudo apt-get install --no-install-recommends -y moby-buildx
       - env:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
