@@ -3,15 +3,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Experimental Status
-        run: |
-          docker version -f '{{.Server.Experimental}}'
-      - name: Docker
-        run: |
-          echo $'{\n    "experimental": true\n}' | sudo tee /etc/docker/daemon.json
-          sudo service docker restart
-          docker version -f '{{.Server.Experimental}}'
+
       - uses: actions/checkout@v2
+      - run: apt-get install --no-install-recommends -y moby-buildx
       - env:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
