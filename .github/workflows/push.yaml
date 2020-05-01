@@ -14,7 +14,7 @@ jobs:
       - env:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
-        run: docker buildx build -t soluto/dqd --cache-from=docker.pkg.github.com/soluto/dqd/app:cache --cache-to=docker.pkg.github.com/soluto/dqd/app:cache .
+        run: docker buildx create --name docker-builder --use && docker buildx build -t soluto/dqd --cache-from=docker.pkg.github.com/soluto/dqd/app:cache --cache-to=docker.pkg.github.com/soluto/dqd/app:cache .
       - name: test-azure
         working-directory: ./integration/tests
         run: ./naive-azure.sh
