@@ -6,16 +6,11 @@ jobs:
       - uses: actions/checkout@v2
       - name: install latest buildx
         run: mkdir -p ~/.docker/cli-plugins && wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.4.1/buildx-v0.4.1.linux-amd64 && chmod a+x  ~/.docker/cli-plugins/docker-buildx
-      - name: Cache docker buildkit
-        uses: actions/cache@v1
-        with:
-          path: ~/.docker-cache
-          key: build-dqd-${{ github.ref }}
       - env:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
         working-directory: ./integration/docker
-        run: docker buildx create --use && docker buildx bake -f ./docker-compose.base.yaml -f ./docker-compose.worker.yaml -f ./docker-compose.producer.yaml --load --set *.cache-from=type=local,src=./docker-cache  --set *.cache-to=type=local,dest=./docker-cache 
+        run: docker buildx create --use && docker buildx bake -f ./docker-compose.base.yaml -f ./docker-compose.worker.yaml -f ./docker-compose.producer.yaml --load  
       - name: test-azure
         working-directory: ./integration/tests
         run: ./naive-azure.sh
