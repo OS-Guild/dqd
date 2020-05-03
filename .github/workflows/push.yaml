@@ -5,7 +5,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: install latest buildx
-        run: mkdir ~/.docker/cli-plugins && wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.4.1/buildx-v0.4.1.linux-amd64 && chmod a+x  ~/.docker/cli-plugins/docker-buildx
+        run: mkdir -f ~/.docker/cli-plugins && wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.4.1/buildx-v0.4.1.linux-amd64 && chmod a+x  ~/.docker/cli-plugins/docker-buildx
       - name: Cache docker buildkit
         uses: actions/cache@v1
         with:
