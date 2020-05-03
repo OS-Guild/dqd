@@ -8,6 +8,7 @@ https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html
 source:
   type: sqs
   
+
   # Location
   url: 
   region: us-east-1
@@ -15,5 +16,4 @@ source:
 
   # Options
   visibilityTimeoutInSeconds: 100 # defaults to 30
-  maxDequeueCount: 1 # deaults to 5
 ``` 
