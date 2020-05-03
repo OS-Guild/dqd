@@ -14,7 +14,7 @@ jobs:
       - env:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
-        run: docker buildx create --name docker-builder --use && docker buildx build -t soluto/dqd --cache-to=type=local,dest=~/.docker-cache --load .
+        run: docker buildx bake -f ./integration/docker/docker-compose.base.yaml -f ./integration/docker/docker-compose.worker.yaml -f ./integration/docker/docker-compose.producer.yaml --load
       - name: test-azure
         working-directory: ./integration/tests
         run: ./naive-azure.sh
