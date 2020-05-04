@@ -10,7 +10,7 @@ jobs:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
         working-directory: ./integration/docker
-        run: docker buildx create --use && docker buildx install && docker buildx bake -f ./docker-compose.base.yaml -f ./docker-compose.worker.yaml -f ./docker-compose.producer.yaml --cache-from=soluto/dqd:ci-caches --cache-to=soluto/dqd:ci-caches --load  
+        run: docker buildx create --use && docker buildx install && docker buildx bake -f ./docker-compose.base.yaml -f ./docker-compose.worker.yaml -f ./docker-compose.producer.yaml  --set *.cache-from=soluto/dqd:ci-caches --set *.cache-to=soluto/dqd:ci-caches --load  
       - name: test-azure
         working-directory: ./integration/tests
         run: ./naive-azure.sh
