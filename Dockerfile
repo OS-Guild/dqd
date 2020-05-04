@@ -14,7 +14,7 @@ RUN adduser \
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download 
+RUN --mount=type=cache,target=/root/.cache/go-build go mod download 
 RUN go mod verify
 COPY . .
 
