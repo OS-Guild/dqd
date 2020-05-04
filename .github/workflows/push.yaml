@@ -4,11 +4,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      #- name: Docker login
-      #  uses: azure/docker-login@v1
-      #  with:
-      #    username: solutodqd
-      #    password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker login
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: docker login --username solutodqd --password $DOCKERHUB_TOKEN
       - name: install latest buildx
         run: mkdir -p ~/.docker/cli-plugins && wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.4.1/buildx-v0.4.1.linux-amd64 && chmod a+x  ~/.docker/cli-plugins/docker-buildx
       - name: build
