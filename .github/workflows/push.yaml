@@ -31,3 +31,13 @@ jobs:
           repository: soluto/dqd/app
           tag_with_sha: ${{ github.ref == 'refs/heads/master'}}
           tag_with_ref: ${{ github.ref != 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
+      - name: Push to Dockerhub
+        uses: docker/build-push-action@v1
+        env:
+          DOCKER_BUILDKIT: 1
+        with:
+          username: solutodqd
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: soluto/dqd
+          tag_with_sha: ${{ github.ref == 'refs/heads/master'}}
+          tag_with_ref: ${{ github.ref != 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
