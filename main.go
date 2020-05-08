@@ -6,14 +6,13 @@ import (
 	"os"
 	"time"
 
-	gofigure "github.com/NCAR/go-figure"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 	"gopkg.in/eapache/go-resiliency.v1/retrier"
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
+	"github.com/soluto/dqd/cmd"
 	"github.com/soluto/dqd/config"
 	"github.com/soluto/dqd/metrics"
 	"github.com/soluto/dqd/utils"
@@ -22,7 +21,7 @@ import (
 var logger = log.With().Str("scope", "Main").Logger()
 
 func waitForHealth() {
-	healthEndpoint := os.Getenv("HEALTH_ENDPOINT")
+	healthEndpoint := os.Getenv("probe")
 	if healthEndpoint == "" {
 		return
 	}
@@ -49,15 +48,12 @@ func waitForHealth() {
 }
 
 func main() {
-	conf := viper.New()
-	conf.SetConfigType("yaml")
+	conf, err := cmd.Load()
+	if err != nil {
+		cmd.ConfigurationError(err)
+	}
 	conf.SetDefault("logLevel", 1)
 	conf.SetDefault("metricsPort", 8888)
-
-	err := gofigure.Parse(conf, []string{"/etc/dqd", "/dqd/config"})
-	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
-	}
 	logLevel := conf.GetInt("logLevel")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 
@@ -77,6 +73,10 @@ func main() {
 
 	for _, listeners := range app.Listeners {
 		go listeners.Listen(ctx)
+	}
+
+	if len(app.Workers) == 0 && len(app.Sources) == 0 {
+		cmd.ConfigurationError(fmt.Errorf("no workers or sources are defiend"))
 	}
 
 	select {
