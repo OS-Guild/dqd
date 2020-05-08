@@ -7,6 +7,7 @@ import (
 	"github.com/soluto/dqd/listeners"
 	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/providers/azure"
+	"github.com/soluto/dqd/providers/servicebus"
 	"github.com/soluto/dqd/providers/sqs"
 	"github.com/soluto/dqd/utils"
 	v1 "github.com/soluto/dqd/v1"
@@ -30,6 +31,10 @@ var sourceProviders = map[string]struct {
 	"sqs": {
 		&sqs.SQSClientFactory{},
 		&sqs.SQSClientFactory{},
+	},
+	"service-bus": {
+		&servicebus.ServiceBusClientFactory{},
+		&servicebus.ServiceBusClientFactory{},
 	},
 }
 
