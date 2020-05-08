@@ -13,11 +13,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Message struct {
-	Event   string                 `json:"event"`
-	Payload map[string]interface{} `json:"payload"`
-}
-
 type SQSClient struct {
 	sqs                        sqs.SQS
 	url                        string
