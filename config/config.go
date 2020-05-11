@@ -62,6 +62,7 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 		pipeConfig.SetDefault("http.path", "/")
 		pipeConfig.SetDefault("http.host", "localhost")
 		pipeConfig.SetDefault("http.port", 80)
+		pipeConfig.SetDefault("source", "default")
 		httpEndpoint := pipeConfig.GetString("http.endpoint")
 		if httpEndpoint == "" {
 			httpEndpoint = fmt.Sprintf("http://%v:%v%v", pipeConfig.GetString("http.host"), pipeConfig.GetString("http.port"), pipeConfig.GetString("http.path"))
