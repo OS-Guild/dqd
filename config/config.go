@@ -39,6 +39,7 @@ var sourceProviders = map[string]struct {
 }
 
 func createSources(v *viper.Viper) map[string]v1.Source {
+	utils.NormalizeEntityConfig(v, "source", "sources")
 	sources := map[string]v1.Source{}
 	for sourceName, subSource := range utils.ViperSubMap(v, "sources") {
 		sourceType := subSource.GetString("type")
@@ -53,8 +54,8 @@ func createSources(v *viper.Viper) map[string]v1.Source {
 
 func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker {
 	var wList []*pipe.Worker
-	pipesConfig := utils.ViperSubSlice(v, "pipes", true)
-	for _, pipeConfig := range pipesConfig {
+	pipesConfig := utils.ViperSubMap(v, "pipes")
+	for name, pipeConfig := range pipesConfig {
 		pipeConfig.SetDefault("rate.init", 10)
 		pipeConfig.SetDefault("rate.min", 1)
 		pipeConfig.SetDefault("rate.window", "30s")
@@ -71,7 +72,7 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 			panic(fmt.Sprintf("missing source definition: %v", source.Name))
 		}
 
-		handler := handlers.WorkerHandler(handlers.NewHttpHandler(httpEndpoint, source), source)
+		handler := handlers.NewHttpHandler(httpEndpoint, source)
 
 		var opts = []pipe.WorkerOption{}
 		writeToSource := pipeConfig.GetString("onError.writeToSource")
@@ -92,7 +93,7 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 		}
 
 		wList = append(wList, pipe.NewWorker(
-			"default",
+			name,
 			[]*v1.Source{&source},
 			handler,
 			opts...,
@@ -111,13 +112,22 @@ func createListeners(v *viper.Viper, sources map[string]v1.Source) []listeners.L
 	return []listeners.Listener{listener}
 }
 
-func CreateApp(v *viper.Viper) App {
+func CreateApp(v *viper.Viper) (*App, error) {
+	err := utils.NormalizeEntityConfig(v, "pipe", "pipes")
+	if err != nil {
+		return nil, err
+	}
+	err = utils.NormalizeEntityConfig(v, "source", "sources")
+	if err != nil {
+		return nil, err
+	}
+
 	sources := createSources(v)
 	listeners := createListeners(v, sources)
 	workers := createWorkers(v, sources)
-	return App{
+	return &App{
 		sources,
 		listeners,
 		workers,
-	}
+	}, nil
 }

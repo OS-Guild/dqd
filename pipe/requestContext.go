@@ -36,7 +36,7 @@ func createRequestContext(ctx context.Context, source string, m v1.Message) *req
 }
 
 func (r *requestContext) Message() v1.Message {
-	m, _ := r.Value(contextKeySource).(v1.Message)
+	m, _ := r.Value(contextKeyMessage).(v1.Message)
 	return m
 }
 

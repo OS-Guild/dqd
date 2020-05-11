@@ -61,7 +61,10 @@ func main() {
 
 	waitForHealth()
 
-	app := config.CreateApp(conf)
+	app, err := config.CreateApp(conf)
+	if err != nil {
+		cmd.ConfigurationError(err)
+	}
 
 	go metrics.Start(metricsPort)
 

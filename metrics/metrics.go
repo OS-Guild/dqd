@@ -29,13 +29,13 @@ var HandlerProcessingHistogram = prometheus.NewHistogramVec(prometheus.Histogram
 	Namespace: "worker",
 	Name:      "handler_processing",
 	Help:      "handler processing time",
-}, []string{"source", "success"})
+}, []string{"pipe", "source", "success"})
 
 var PipeProcessingMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "worker",
 	Name:      "pipe_processing",
-	Help:      "pipe processing messages",
-}, []string{"name", "success"})
+	Help:      "Pipe processing messages",
+}, []string{"pipe", "source", "success"})
 
 func StartTimer(h *prometheus.HistogramVec) func(...string) {
 	start := time.Now()

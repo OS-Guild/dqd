@@ -1,13 +1,38 @@
 package utils
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 )
 
-func ViperSubSlice(v *viper.Viper, key string, allowSingle bool) []*viper.Viper {
+func NormalizeEntityConfig(v *viper.Viper, singular string, plural string) error {
+	one := v.Get(singular)
+	multiple := v.Get(plural)
+	if one != nil {
+		if multiple != nil {
+			return fmt.Errorf("failed to normalize %v,%v multiple definitions", singular, plural)
+		}
+		v.Set(plural, map[string]interface{}{
+			"default": one,
+		})
+		v.Set(singular, nil)
+	} else if multiple != nil {
+		if reflect.TypeOf(multiple).Kind() == reflect.Slice {
+			newData := map[string]interface{}{}
+			for i, item := range multiple.([]interface{}) {
+				newData[fmt.Sprintf("%v%v", plural, i)] = item
+			}
+			v.Set(plural, newData)
+		}
+	}
+	return nil
+
+}
+
+func ViperSubSlice(v *viper.Viper, key string) []*viper.Viper {
 	data := v.Get(key)
 	if data == nil {
 		return nil
@@ -21,10 +46,6 @@ func ViperSubSlice(v *viper.Viper, key string, allowSingle bool) []*viper.Viper 
 			vList = append(vList, sub)
 		}
 		return vList
-	case reflect.Map:
-		if allowSingle {
-			return []*viper.Viper{v.Sub(key)}
-		}
 	}
 	return nil
 

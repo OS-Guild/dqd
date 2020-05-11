@@ -26,7 +26,7 @@ func (w *Worker) handleRequest(ctx *requestContext) (_ *v1.RawMessage, err error
 	defer func() {
 		source := ctx.Source()
 		t := float64(time.Since(ctx.StartTime())) / float64(time.Second)
-		metrics.HandlerProcessingHistogram.WithLabelValues(source, strconv.FormatBool(err != nil)).Observe(t)
+		metrics.HandlerProcessingHistogram.WithLabelValues(w.name, source, strconv.FormatBool(err != nil)).Observe(t)
 	}()
 	return w.handler.Handle(ctx, ctx.Message())
 }
@@ -46,7 +46,7 @@ func (w *Worker) handleResults(ctx context.Context, results chan *requestContext
 			m, err := reqCtx.Result()
 			defer func() {
 				t := float64(time.Since(reqCtx.StartTime())) / float64(time.Second)
-				metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, strconv.FormatBool(err != nil)).Observe(t)
+				metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, reqCtx.Source(), strconv.FormatBool(err != nil)).Observe(t)
 			}()
 			if err != nil {
 				w.handleErrorRequest(reqCtx, err)
@@ -88,7 +88,6 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext
 			atomic.AddInt64(&count, 1)
 
 			go func(r *requestContext) {
-
 				result, err := w.handler.Handle(r, r.Message())
 				atomic.AddInt64(&count, -1)
 				if !w.fixedRate {
@@ -136,11 +135,11 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext
 			}
 		}()
 	}
-	logger.Info().Msg("Init worker")
 	done := make(chan error)
 	defer close(done)
 	for _, s := range w.sources {
 		go func(s *v1.Source) {
+			logger.Info().Str("source", s.Name).Msg("Start reading from source")
 			consumer := s.CreateConsumer()
 			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
 				messages <- createRequestContext(ctx, s.Name, m)
@@ -159,6 +158,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext
 }
 
 func (w *Worker) Start(ctx context.Context) error {
+	logger.Info().Msg("Starting pipe")
 	messages := make(chan *requestContext, w.minConcurrency)
 	defer close(messages)
 	results := make(chan *requestContext, w.minConcurrency)

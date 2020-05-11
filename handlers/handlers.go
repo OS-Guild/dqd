@@ -53,19 +53,3 @@ type FuncHandler func(context.Context, v1.Message) (*v1.RawMessage, HandlerError
 func (f FuncHandler) Handle(c context.Context, m v1.Message) (*v1.RawMessage, HandlerError) {
 	return f(c, m)
 }
-
-func WorkerHandler(h Handler, s v1.Source) Handler {
-	return FuncHandler(func(ctx context.Context, m v1.Message) (*v1.RawMessage, HandlerError) {
-		res, err := h.Handle(ctx, m)
-		if err != nil {
-			logger.Warn().Err(err).Msg("Error handling message")
-			if m.Abort() {
-				return nil, nil
-			} else {
-				return nil, err
-			}
-		}
-		m.Done()
-		return res, nil
-	})
-}

@@ -1,5 +1,5 @@
-pipes:
-- source: messages
+pipe:
+  source: messages
   http:
     path: "/"
   rate:

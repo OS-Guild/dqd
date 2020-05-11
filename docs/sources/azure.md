@@ -16,4 +16,5 @@ source:
   # Options
   visibilityTimeoutInSeconds: 100 # defaults to 60
   maxDequeueCount: 1 # deaults to 5
+  retryVisiblityTimeoutInSeconds: [10, 500, 600]
 ``` 

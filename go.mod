@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/Azure/azure-pipeline-go v0.1.8
+	github.com/Azure/azure-service-bus-go v0.10.1
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
 	github.com/NCAR/go-figure v0.0.0-20181011044936-3924b68896e8
 	github.com/aws/aws-sdk-go v1.30.12

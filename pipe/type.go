@@ -31,6 +31,7 @@ type Worker struct {
 func WithDynamicRate(start, min int, windowSize time.Duration) WorkerOption {
 	return WorkerOption(func(w *Worker) {
 		w.fixedRate = false
+		w.concurrencyStartingPoint = start
 		w.minConcurrency = min
 		w.dynamicRateBatchWindow = windowSize
 	})
