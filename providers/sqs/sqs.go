@@ -66,7 +66,7 @@ func (m *SQSMessage) Abort() bool {
 	return true
 }
 
-func (c *SQSClient) Iter(ctx context.Context, out chan v1.Message) error {
+func (c *SQSClient) Iter(ctx context.Context, next v1.NextMessage) error {
 	errorBackoff := &backoff.Backoff{}
 	emptyBackoff := &backoff.Backoff{}
 Main:
@@ -110,13 +110,13 @@ Main:
 				sqsM,
 				c,
 			}
-			out <- message
+			next(message)
 		}
 	}
 	return nil
 }
 
-func (c *SQSClient) Produce(context context.Context, m v1.RawMessage) error {
+func (c *SQSClient) Produce(context context.Context, m *v1.RawMessage) error {
 	backoff := &backoff.Backoff{
 		Max: 10 * time.Second,
 		Min: 100 * time.Millisecond,

@@ -2,57 +2,73 @@ package pipe
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"github.com/soluto/dqd/handlers"
 	"github.com/soluto/dqd/metrics"
 	v1 "github.com/soluto/dqd/v1"
 )
 
-var logger = log.With().Str("scope", "Worker").Logger()
-
-type WorkerOptions struct {
-	MaxDequeueCount          int64
-	FixedRate                bool
-	DynamicRateBatchWindow   time.Duration
-	ConcurrencyStartingPoint int64
-	MinConcurrency           int64
-}
-
-type Worker struct {
-	source  v1.Source
-	options WorkerOptions
-	handler handlers.Handler
-	logger  *zerolog.Logger
-}
-
-func NewWorker(source v1.Source, handler handlers.Handler, opts WorkerOptions) *Worker {
-	logger = logger.With().Str("source", source.Name).Logger()
-	return &Worker{
-		source,
-		opts,
-		handler,
-		&logger,
+func (w *Worker) handleErrorRequest(ctx *requestContext, err error) {
+	m := ctx.Message()
+	if !m.Abort() {
+		if w.writeToErrorSource {
+			err = w.errorSource.Produce(ctx, &v1.RawMessage{m.Data()})
+		}
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to process message")
+		}
 	}
 }
 
-func (w *Worker) Process(ctx context.Context, message v1.Message) {
-	if err := w.handler.Handle(ctx, message); err != nil {
-		log.Err(err).Msg("Error handling message")
-	}
+func (w *Worker) handleRequest(ctx *requestContext) (_ *v1.RawMessage, err error) {
+	defer func() {
+		source := ctx.Source()
+		t := float64(time.Since(ctx.StartTime())) / float64(time.Second)
+		metrics.HandlerProcessingHistogram.WithLabelValues(source, strconv.FormatBool(err != nil)).Observe(t)
+	}()
+	return w.handler.Handle(ctx, ctx.Message())
 }
 
-func (w *Worker) Start(ctx context.Context) {
-	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.source.Name)
-	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.source.Name)
+func (w *Worker) handleResults(ctx context.Context, results chan *requestContext) error {
+	done := make(chan error)
+	defer close(done)
+	for reqCtx := range results {
+		select {
+		case err := <-done:
+			return err
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+		go func() {
+			m, err := reqCtx.Result()
+			defer func() {
+				t := float64(time.Since(reqCtx.StartTime())) / float64(time.Second)
+				metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, strconv.FormatBool(err != nil)).Observe(t)
+			}()
+			if err != nil {
+				w.handleErrorRequest(reqCtx, err)
+			} else if m != nil && w.output != nil {
+				err := w.output.Produce(reqCtx, m)
+				if err != nil {
+					w.handleErrorRequest(reqCtx, err)
+				}
+			}
+
+		}()
+	}
+	return nil
+}
+
+func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext, results chan *requestContext) error {
+	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.name)
+	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.name)
 
 	var count, lastBatch int64
-	maxItems := w.options.ConcurrencyStartingPoint
-	messages := make(chan v1.Message, w.options.MinConcurrency)
+	maxItems := int64(w.concurrencyStartingPoint)
+	minConcurrency := int64(w.minConcurrency)
 	defer close(messages)
 
 	maxConcurrencyGauge.Set(float64(maxItems))
@@ -71,26 +87,27 @@ func (w *Worker) Start(ctx context.Context) {
 
 			atomic.AddInt64(&count, 1)
 
-			go func(m v1.Message) {
-				w.Process(ctx, m)
+			go func(r *requestContext) {
 
+				result, err := w.handler.Handle(r, r.Message())
 				atomic.AddInt64(&count, -1)
-				if !w.options.FixedRate {
+				if !w.fixedRate {
 					atomic.AddInt64(&lastBatch, 1)
 				}
+				results <- r.WithResult(result, err)
 			}(message)
 		}
 	}()
 
 	// Handle throughput
-	if !w.options.FixedRate {
+	if !w.fixedRate {
 		go func() {
 			var prev int64
-			timer := time.NewTimer(w.options.DynamicRateBatchWindow)
+			timer := time.NewTimer(w.dynamicRateBatchWindow)
 			shouldUpscale := true
 			logger.Debug().Int64("concurrency", maxItems).Msg("Using dynamic concurrency")
 			for {
-				timer.Reset(w.options.DynamicRateBatchWindow)
+				timer.Reset(w.dynamicRateBatchWindow)
 
 				select {
 				case <-ctx.Done():
@@ -109,21 +126,60 @@ func (w *Worker) Start(ctx context.Context) {
 				}
 				if shouldUpscale {
 					atomic.AddInt64(&maxItems, 1)
-				} else if maxItems > w.options.MinConcurrency {
+				} else if maxItems > minConcurrency {
 					atomic.AddInt64(&maxItems, -1)
 				}
 				maxConcurrencyGauge.Set(float64(maxItems))
 
 				prev = curr
-				logger.Debug().Int64("concurrency", maxItems).Float64("rate", float64(curr)/w.options.DynamicRateBatchWindow.Seconds()).Msg("tuning concurrency")
+				logger.Debug().Int64("concurrency", maxItems).Float64("rate", float64(curr)/w.dynamicRateBatchWindow.Seconds()).Msg("tuning concurrency")
 			}
 		}()
 	}
 	logger.Info().Msg("Init worker")
-	consumer := w.source.CreateConsumer()
-	err := consumer.Iter(ctx, messages)
+	done := make(chan error)
+	defer close(done)
+	for _, s := range w.sources {
+		go func(s *v1.Source) {
+			consumer := s.CreateConsumer()
+			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
+				messages <- createRequestContext(ctx, s.Name, m)
+			}))
+			if err != nil {
+				done <- err
+			}
+		}(s)
+	}
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return nil
+	}
+}
 
-	if err != nil {
-		panic(fmt.Sprintf("error reading from source", err))
+func (w *Worker) Start(ctx context.Context) error {
+	messages := make(chan *requestContext, w.minConcurrency)
+	defer close(messages)
+	results := make(chan *requestContext, w.minConcurrency)
+	defer close(results)
+	done := make(chan error)
+
+	innerContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		done <- w.readMessages(innerContext, messages, results)
+	}()
+
+	go func() {
+		done <- w.handleResults(innerContext, results)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-done:
+		return err
 	}
 }

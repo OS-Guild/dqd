@@ -18,6 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.5.1
 	github.com/rs/zerolog v1.18.0
 	github.com/spf13/cast v1.3.0
+	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.6.2
 	github.com/tsenart/go-tsz v0.0.0-20180814235614-0bd30b3df1c3 // indirect
 	github.com/tsenart/vegeta v12.7.0+incompatible // indirect

@@ -8,8 +8,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+type NextMessage func(Message)
+
 type RawMessage struct {
-	Id   string
 	Data string
 }
 
@@ -21,7 +22,7 @@ type Message interface {
 }
 
 type Consumer interface {
-	Iter(ctx context.Context, out chan Message) error
+	Iter(ctx context.Context, next NextMessage) error
 }
 
 type ConsumerFactory interface {
@@ -29,7 +30,7 @@ type ConsumerFactory interface {
 }
 
 type Producer interface {
-	Produce(context context.Context, m RawMessage) error
+	Produce(context context.Context, m *RawMessage) error
 }
 
 type ProducerFactory interface {

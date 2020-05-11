@@ -25,11 +25,17 @@ var WorkerBatchSizeGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "concurrent message handling",
 }, []string{"source"})
 
-var WorkerProcessesMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+var HandlerProcessingHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "worker",
-	Name:      "handle",
-	Help:      "total processed messages",
+	Name:      "handler_processing",
+	Help:      "handler processing time",
 }, []string{"source", "success"})
+
+var PipeProcessingMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "worker",
+	Name:      "pipe_processing",
+	Help:      "pipe processing messages",
+}, []string{"name", "success"})
 
 func StartTimer(h *prometheus.HistogramVec) func(...string) {
 	start := time.Now()
@@ -41,7 +47,8 @@ func StartTimer(h *prometheus.HistogramVec) func(...string) {
 
 func Start(metricsPort int) {
 	prometheus.MustRegister(
-		WorkerProcessesMessagesHistogram,
+		HandlerProcessingHistogram,
+		PipeProcessingMessagesHistogram,
 		WorkerBatchSizeGauge,
 		WorkerMaxConcurrencyGauge,
 	)

@@ -57,7 +57,6 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 	for _, pipeConfig := range pipesConfig {
 		pipeConfig.SetDefault("rate.init", 10)
 		pipeConfig.SetDefault("rate.min", 1)
-		pipeConfig.SetDefault("rate.static", false)
 		pipeConfig.SetDefault("rate.window", "30s")
 		pipeConfig.SetDefault("http.path", "/")
 		pipeConfig.SetDefault("http.host", "localhost")
@@ -74,24 +73,29 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 
 		handler := handlers.WorkerHandler(handlers.NewHttpHandler(httpEndpoint, source), source)
 
+		var opts = []pipe.WorkerOption{}
 		writeToSource := pipeConfig.GetString("onError.writeToSource")
 		if writeToSource != "" {
 			errorSource, exists := sources[writeToSource]
 			if !exists {
 				panic(fmt.Sprintf("missing source definition: %v", writeToSource))
 			}
-			handler = handlers.NewWriteToSourceErrorHandler(handler, errorSource)
+			opts = append(opts, pipe.WithErrorSource(&errorSource))
+		}
+
+		if pipeConfig.IsSet("rate.fixed") {
+			opts = append(opts, pipe.WithFixedRate(pipeConfig.GetInt("rate.fixed")))
+		} else {
+			opts = append(opts, pipe.WithDynamicRate(pipeConfig.GetInt("rate.init"),
+				pipeConfig.GetInt("rate.min"),
+				pipeConfig.GetDuration("rate.window")))
 		}
 
 		wList = append(wList, pipe.NewWorker(
-			source,
+			"default",
+			[]*v1.Source{&source},
 			handler,
-			pipe.WorkerOptions{
-				FixedRate:                pipeConfig.GetBool("rate.static"),
-				ConcurrencyStartingPoint: pipeConfig.GetInt64("rate.init"),
-				DynamicRateBatchWindow:   pipeConfig.GetDuration("rate.window"),
-				MinConcurrency:           pipeConfig.GetInt64("rate.min"),
-			},
+			opts...,
 		))
 	}
 	return wList

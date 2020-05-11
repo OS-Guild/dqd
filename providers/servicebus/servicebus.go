@@ -53,7 +53,7 @@ func (m *ServiceBusMessage) Abort() bool {
 	return true
 }
 
-func (sb *ServiceBusClient) Iter(ctx context.Context, out chan v1.Message) error {
+func (sb *ServiceBusClient) Iter(ctx context.Context, next v1.NextMessage) error {
 	rec, err := sb.subscription.NewReceiver(ctx, azservicebus.ReceiverWithReceiveMode(azservicebus.PeekLockMode),
 		azservicebus.ReceiverWithPrefetchCount(10))
 	if err != nil {
@@ -64,7 +64,7 @@ func (sb *ServiceBusClient) Iter(ctx context.Context, out chan v1.Message) error
 		message := &ServiceBusMessage{
 			m,
 		}
-		out <- message
+		next(message)
 		return nil
 	}))
 
@@ -72,7 +72,7 @@ func (sb *ServiceBusClient) Iter(ctx context.Context, out chan v1.Message) error
 	return handle.Err()
 }
 
-func (c *ServiceBusClient) Produce(ctx context.Context, m v1.RawMessage) error {
+func (c *ServiceBusClient) Produce(ctx context.Context, m *v1.RawMessage) error {
 	return c.topic.Send(ctx, azservicebus.NewMessageFromString(m.Data))
 }
 

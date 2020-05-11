@@ -67,12 +67,12 @@ type ClientOptions struct {
 	VisibilityTimeoutInSeconds     int64
 }
 
-func (c *azureClient) Produce(context context.Context, m v1.RawMessage) error {
+func (c *azureClient) Produce(context context.Context, m *v1.RawMessage) error {
 	_, err := c.messagesURL.Enqueue(context, m.Data, time.Duration(0), time.Duration(0))
 	return err
 }
 
-func (c *azureClient) Iter(ctx context.Context, out chan v1.Message) error {
+func (c *azureClient) Iter(ctx context.Context, next v1.NextMessage) error {
 	backoff := &backoff.Backoff{}
 
 Main:
@@ -107,7 +107,7 @@ Main:
 				azM,
 				c,
 			}
-			out <- message
+			next(message)
 		}
 	}
 	return nil

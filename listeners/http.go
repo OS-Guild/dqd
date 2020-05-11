@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 	v1 "github.com/soluto/dqd/v1"
@@ -36,9 +35,8 @@ func (h *HttpListener) Add(source v1.Source, options *viper.Viper) {
 			w.WriteHeader(500)
 			return
 		}
-		err = p.Produce(h.context, v1.RawMessage{
+		err = p.Produce(h.context, &v1.RawMessage{
 			Data: string(msg),
-			Id:   uuid.New().String(),
 		})
 		if err != nil {
 			logger.Warn().Err(err).Msg("Error producing item")

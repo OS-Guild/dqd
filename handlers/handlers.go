@@ -2,10 +2,8 @@ package handlers
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/rs/zerolog/log"
-	"github.com/soluto/dqd/metrics"
 	v1 "github.com/soluto/dqd/v1"
 )
 
@@ -47,29 +45,27 @@ func BadRequestError(err error) HandlerError {
 
 // Handler handles queue messages.
 type Handler interface {
-	Handle(context.Context, v1.Message) HandlerError
+	Handle(context.Context, v1.Message) (*v1.RawMessage, HandlerError)
 }
 
-type FuncHandler func(context.Context, v1.Message) HandlerError
+type FuncHandler func(context.Context, v1.Message) (*v1.RawMessage, HandlerError)
 
-func (f FuncHandler) Handle(c context.Context, m v1.Message) HandlerError {
+func (f FuncHandler) Handle(c context.Context, m v1.Message) (*v1.RawMessage, HandlerError) {
 	return f(c, m)
 }
 
 func WorkerHandler(h Handler, s v1.Source) Handler {
-	return FuncHandler(func(ctx context.Context, m v1.Message) HandlerError {
-		end := metrics.StartTimer(metrics.WorkerProcessesMessagesHistogram)
-		err := h.Handle(ctx, m)
+	return FuncHandler(func(ctx context.Context, m v1.Message) (*v1.RawMessage, HandlerError) {
+		res, err := h.Handle(ctx, m)
 		if err != nil {
 			logger.Warn().Err(err).Msg("Error handling message")
 			if m.Abort() {
-				return nil
+				return nil, nil
 			} else {
-				return err
+				return nil, err
 			}
 		}
-		end(s.Name, strconv.FormatBool(err != nil))
 		m.Done()
-		return nil
+		return res, nil
 	})
 }
