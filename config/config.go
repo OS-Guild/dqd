@@ -15,7 +15,7 @@ import (
 )
 
 type App struct {
-	Sources   map[string]v1.Source
+	Sources   map[string]*v1.Source
 	Listeners []listeners.Listener
 	Workers   []*pipe.Worker
 }
@@ -38,9 +38,9 @@ var sourceProviders = map[string]struct {
 	},
 }
 
-func createSources(v *viper.Viper) map[string]v1.Source {
+func createSources(v *viper.Viper) map[string]*v1.Source {
 	utils.NormalizeEntityConfig(v, "source", "sources")
-	sources := map[string]v1.Source{}
+	sources := map[string]*v1.Source{}
 	for sourceName, subSource := range utils.ViperSubMap(v, "sources") {
 		sourceType := subSource.GetString("type")
 		factory, exist := sourceProviders[sourceType]
@@ -52,7 +52,15 @@ func createSources(v *viper.Viper) map[string]v1.Source {
 	return sources
 }
 
-func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker {
+func getSource(sources map[string]*v1.Source, sourceName string) *v1.Source {
+	source, exists := sources[sourceName]
+	if !exists {
+		panic(fmt.Sprintf("missing source definition: %v", sourceName))
+	}
+	return source
+}
+
+func createWorkers(v *viper.Viper, sources map[string]*v1.Source) []*pipe.Worker {
 	var wList []*pipe.Worker
 	pipesConfig := utils.ViperSubMap(v, "pipes")
 	for name, pipeConfig := range pipesConfig {
@@ -67,22 +75,14 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 		if httpEndpoint == "" {
 			httpEndpoint = fmt.Sprintf("http://%v:%v%v", pipeConfig.GetString("http.host"), pipeConfig.GetString("http.port"), pipeConfig.GetString("http.path"))
 		}
+		source := getSource(sources, pipeConfig.GetString("source"))
 
-		source, exists := sources[pipeConfig.GetString("source")]
-		if !exists {
-			panic(fmt.Sprintf("missing source definition: %v", source.Name))
-		}
-
-		handler := handlers.NewHttpHandler(httpEndpoint, source)
+		handler := handlers.NewHttpHandler(httpEndpoint)
 
 		var opts = []pipe.WorkerOption{}
-		writeToSource := pipeConfig.GetString("onError.writeToSource")
+		writeToSource := pipeConfig.GetString("onError.writeTo.source")
 		if writeToSource != "" {
-			errorSource, exists := sources[writeToSource]
-			if !exists {
-				panic(fmt.Sprintf("missing source definition: %v", writeToSource))
-			}
-			opts = append(opts, pipe.WithErrorSource(&errorSource))
+			opts = append(opts, pipe.WithErrorSource(getSource(sources, writeToSource)))
 		}
 
 		if pipeConfig.IsSet("rate.fixed") {
@@ -92,10 +92,18 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 				pipeConfig.GetInt("rate.min"),
 				pipeConfig.GetDuration("rate.window")))
 		}
+		output := pipeConfig.GetString("output")
+		if output != "" {
+			opts = append(opts, pipe.WithOutput(getSource(sources, output)))
+		} else {
+			opts = append(opts, pipe.WithDynamicRate(pipeConfig.GetInt("rate.init"),
+				pipeConfig.GetInt("rate.min"),
+				pipeConfig.GetDuration("rate.window")))
+		}
 
 		wList = append(wList, pipe.NewWorker(
 			name,
-			[]*v1.Source{&source},
+			[]*v1.Source{source},
 			handler,
 			opts...,
 		))
@@ -103,7 +111,7 @@ func createWorkers(v *viper.Viper, sources map[string]v1.Source) []*pipe.Worker 
 	return wList
 }
 
-func createListeners(v *viper.Viper, sources map[string]v1.Source) []listeners.Listener {
+func createListeners(v *viper.Viper, sources map[string]*v1.Source) []listeners.Listener {
 	v.SetDefault("listeners.http.host", "0.0.0.0:9999")
 	host := v.GetString("listeners.http.host")
 	listener := listeners.Http(host)

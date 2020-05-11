@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"context"
-
 	"github.com/rs/zerolog/log"
 	v1 "github.com/soluto/dqd/v1"
 )
@@ -45,11 +43,5 @@ func BadRequestError(err error) HandlerError {
 
 // Handler handles queue messages.
 type Handler interface {
-	Handle(context.Context, v1.Message) (*v1.RawMessage, HandlerError)
-}
-
-type FuncHandler func(context.Context, v1.Message) (*v1.RawMessage, HandlerError)
-
-func (f FuncHandler) Handle(c context.Context, m v1.Message) (*v1.RawMessage, HandlerError) {
-	return f(c, m)
+	Handle(*v1.RequestContext, v1.Message) (*v1.RawMessage, HandlerError)
 }

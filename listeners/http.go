@@ -2,6 +2,7 @@ package listeners
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -26,10 +27,10 @@ func Http(address string) Listener {
 	}
 }
 
-func (h *HttpListener) Add(source v1.Source, options *viper.Viper) {
+func (h *HttpListener) Add(source *v1.Source, options *viper.Viper) {
 	p := source.CreateProducer()
 	logger.Info().Str("source", source.Name).Msg("adding source route")
-	h.router.Methods("post").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h.router.Methods("post").Path(fmt.Sprintf("/%v", source.Name)).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		msg, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(500)

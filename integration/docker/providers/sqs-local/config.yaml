@@ -4,4 +4,8 @@ sources:
     endpoint: http://sqs:9324
     url: http://sqs:9324/queue/default
     region: us-east-1
-    queue: dqd
+  sqs:
+    type: sqs
+    endpoint: http://sqs:9324
+    url: http://sqs:9324/queue/default
+    region: us-east-1

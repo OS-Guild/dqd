@@ -3,11 +3,10 @@ pipes:
   http:
     path: "/?error=0.1"
   onError:
-    writeToSource: messages-error
+    writeTo:
+      source: messages-error
   rate:
     window: 5s
 - source: messages-error
   http:
     path: "/"
-  rate:
-    static: true

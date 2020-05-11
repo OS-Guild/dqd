@@ -10,6 +10,6 @@ import (
 type Dispose func() error
 
 type Listener interface {
-	Add(source v1.Source, options *viper.Viper)
+	Add(source *v1.Source, options *viper.Viper)
 	Listen(context context.Context) error
 }

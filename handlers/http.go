@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -13,13 +12,12 @@ import (
 
 type httpHandler struct {
 	client *gentleman.Client
-	source v1.Source
 }
 
 var handlerLogger = log.With().Str("scope", "Handler")
 
-func (h *httpHandler) Handle(ctx context.Context, message v1.Message) (*v1.RawMessage, HandlerError) {
-	res, err := h.client.Post().JSON(message.Data()).Send()
+func (h *httpHandler) Handle(ctx *v1.RequestContext, message v1.Message) (*v1.RawMessage, HandlerError) {
+	res, err := h.client.Post().AddHeader("x-dqd-source", ctx.Source()).JSON(message.Data()).Send()
 	if err != nil {
 		return nil, ServerError(err)
 	}
@@ -36,13 +34,12 @@ func (h *httpHandler) Handle(ctx context.Context, message v1.Message) (*v1.RawMe
 	}, nil
 }
 
-func NewHttpHandler(endpoint string, source v1.Source) Handler {
+func NewHttpHandler(endpoint string) Handler {
 	client := gentleman.New().
 		URL(endpoint).
-		Use(timeout.Request(2*time.Minute)).AddHeader("x-dqd-source", source.Name)
+		Use(timeout.Request(2 * time.Minute))
 
 	return &httpHandler{
 		client,
-		source,
 	}
 }

@@ -10,11 +10,11 @@ import (
 	v1 "github.com/soluto/dqd/v1"
 )
 
-func (w *Worker) handleErrorRequest(ctx *requestContext, err error) {
+func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProducer v1.Producer) {
 	m := ctx.Message()
 	if !m.Abort() {
-		if w.writeToErrorSource {
-			err = w.errorSource.Produce(ctx, &v1.RawMessage{m.Data()})
+		if w.writeToErrorSource && errProducer != nil {
+			err = errProducer.Produce(ctx, &v1.RawMessage{m.Data()})
 		}
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to process message")
@@ -22,7 +22,7 @@ func (w *Worker) handleErrorRequest(ctx *requestContext, err error) {
 	}
 }
 
-func (w *Worker) handleRequest(ctx *requestContext) (_ *v1.RawMessage, err error) {
+func (w *Worker) handleRequest(ctx *v1.RequestContext) (_ *v1.RawMessage, err error) {
 	defer func() {
 		source := ctx.Source()
 		t := float64(time.Since(ctx.StartTime())) / float64(time.Second)
@@ -31,7 +31,15 @@ func (w *Worker) handleRequest(ctx *requestContext) (_ *v1.RawMessage, err error
 	return w.handler.Handle(ctx, ctx.Message())
 }
 
-func (w *Worker) handleResults(ctx context.Context, results chan *requestContext) error {
+func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestContext) error {
+	var outputP v1.Producer
+	var errorP v1.Producer
+	if w.output != nil {
+		outputP = w.output.CreateProducer()
+	}
+	if w.errorSource != nil {
+		errorP = w.errorSource.CreateProducer()
+	}
 	done := make(chan error)
 	defer close(done)
 	for reqCtx := range results {
@@ -49,11 +57,11 @@ func (w *Worker) handleResults(ctx context.Context, results chan *requestContext
 				metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, reqCtx.Source(), strconv.FormatBool(err != nil)).Observe(t)
 			}()
 			if err != nil {
-				w.handleErrorRequest(reqCtx, err)
-			} else if m != nil && w.output != nil {
-				err := w.output.Produce(reqCtx, m)
+				w.handleErrorRequest(reqCtx, err, errorP)
+			} else if m != nil && outputP != nil {
+				err := outputP.Produce(reqCtx, m)
 				if err != nil {
-					w.handleErrorRequest(reqCtx, err)
+					w.handleErrorRequest(reqCtx, err, errorP)
 				}
 			}
 
@@ -62,7 +70,7 @@ func (w *Worker) handleResults(ctx context.Context, results chan *requestContext
 	return nil
 }
 
-func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext, results chan *requestContext) error {
+func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestContext, results chan *v1.RequestContext) error {
 	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.name)
 	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.name)
 
@@ -87,7 +95,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext
 
 			atomic.AddInt64(&count, 1)
 
-			go func(r *requestContext) {
+			go func(r *v1.RequestContext) {
 				result, err := w.handler.Handle(r, r.Message())
 				atomic.AddInt64(&count, -1)
 				if !w.fixedRate {
@@ -138,11 +146,11 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext
 	done := make(chan error)
 	defer close(done)
 	for _, s := range w.sources {
-		go func(s *v1.Source) {
-			logger.Info().Str("source", s.Name).Msg("Start reading from source")
-			consumer := s.CreateConsumer()
+		go func(ss *v1.Source) {
+			logger.Info().Str("source", ss.Name).Msg("Start reading from source")
+			consumer := ss.CreateConsumer()
 			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
-				messages <- createRequestContext(ctx, s.Name, m)
+				messages <- v1.CreateRequestContext(ctx, ss.Name, m)
 			}))
 			if err != nil {
 				done <- err
@@ -159,9 +167,9 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *requestContext
 
 func (w *Worker) Start(ctx context.Context) error {
 	logger.Info().Msg("Starting pipe")
-	messages := make(chan *requestContext, w.minConcurrency)
+	messages := make(chan *v1.RequestContext, w.minConcurrency)
 	defer close(messages)
-	results := make(chan *requestContext, w.minConcurrency)
+	results := make(chan *v1.RequestContext, w.minConcurrency)
 	defer close(results)
 	done := make(chan error)
 

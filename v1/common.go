@@ -44,8 +44,8 @@ type Source struct {
 	Name            string
 }
 
-func NewSource(cf ConsumerFactory, pf ProducerFactory, config *viper.Viper, name string) Source {
-	return Source{
+func NewSource(cf ConsumerFactory, pf ProducerFactory, config *viper.Viper, name string) *Source {
+	return &Source{
 		cf,
 		pf,
 		config,

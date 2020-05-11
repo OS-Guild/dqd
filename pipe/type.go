@@ -16,8 +16,8 @@ type WorkerOption func(w *Worker)
 type Worker struct {
 	name                     string
 	sources                  []*v1.Source
-	output                   v1.Producer
-	errorSource              v1.Producer
+	output                   *v1.Source
+	errorSource              *v1.Source
 	handler                  handlers.Handler
 	logger                   *zerolog.Logger
 	maxDequeueCount          int64
@@ -47,13 +47,13 @@ func WithFixedRate(rate int) WorkerOption {
 func WithErrorSource(source *v1.Source) WorkerOption {
 	return WorkerOption(func(w *Worker) {
 		w.writeToErrorSource = true
-		w.errorSource = source.CreateProducer()
+		w.errorSource = source
 	})
 }
 
 func WithOutput(source *v1.Source) WorkerOption {
 	return WorkerOption(func(w *Worker) {
-		w.output = source.CreateProducer()
+		w.output = source
 	})
 }
 

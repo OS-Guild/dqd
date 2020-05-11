@@ -38,12 +38,17 @@ func main() {
 				return
 			}
 		}
+		incremnt := !(r.URL.Query().Get("no-increment") == "true")
 		w.WriteHeader(200)
-		p := atomic.AddInt64(&t, 1)
-		fmt.Printf("handled %v message\n", p)
+		p := t
+		if incremnt {
+			p = atomic.AddInt64(&t, 1)
+			fmt.Printf("handled %v message\n", p)
+		}
 		if p != -1 && p == ec {
 			time.AfterFunc(1*time.Second, func() { os.Exit(0) })
 		}
+		w.Write(body)
 	})
 	println("Listening")
 	go func() {

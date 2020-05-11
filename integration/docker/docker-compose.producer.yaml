@@ -7,5 +7,5 @@ services:
     depends_on: 
     - dqd
     environment: 
-    - SOURCE=messages
+    - SOURCE=${PRODUCER_SOURCE:-messages}
     - MESSAGES_COUNT=${MESSAGES_COUNT:-1000}
