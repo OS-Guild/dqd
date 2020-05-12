@@ -36,6 +36,10 @@ var sourceProviders = map[string]struct {
 		&servicebus.ServiceBusClientFactory{},
 		&servicebus.ServiceBusClientFactory{},
 	},
+	"io": {
+		&utils.IoSourceFactory{},
+		&utils.IoSourceFactory{},
+	},
 }
 
 func createSources(v *viper.Viper) map[string]*v1.Source {

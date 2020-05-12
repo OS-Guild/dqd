@@ -23,6 +23,8 @@ func Load() (*viper.Viper, error) {
 	configOverrides := pflag.CommandLine.StringSlice("set", []string{}, "Override specific configuration keys")
 	pflag.Parse()
 	v.SetConfigType("yaml")
+	v.SetEnvPrefix("dqd")
+	v.AutomaticEnv()
 	err := gofigure.Parse(v, *configDirs)
 	if err != nil {
 		panic(fmt.Errorf("Fatal error config file: %s \n", err))
