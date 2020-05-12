@@ -55,9 +55,27 @@ func createSources(v *viper.Viper) map[string]*v1.Source {
 func getSource(sources map[string]*v1.Source, sourceName string) *v1.Source {
 	source, exists := sources[sourceName]
 	if !exists {
-		panic(fmt.Sprintf("missing source definition: %v", sourceName))
+		panic(fmt.Sprintf("Missing source definition: %v", sourceName))
 	}
 	return source
+}
+
+func createHandler(v *viper.Viper) handlers.Handler {
+	if v == nil {
+		panic("no handler define for pipe, use 'none' handler if it's the desired behavior")
+	}
+	if v.Get("none") != nil {
+		return handlers.None
+	}
+	v.SetDefault("http.path", "/")
+	v.SetDefault("http.host", "localhost")
+	v.SetDefault("http.port", 80)
+
+	httpEndpoint := v.GetString("http.endpoint")
+	if httpEndpoint == "" {
+		httpEndpoint = fmt.Sprintf("http://%v:%v%v", v.GetString("http.host"), v.GetString("http.port"), v.GetString("http.path"))
+	}
+	return handlers.NewHttpHandler(httpEndpoint)
 }
 
 func createWorkers(v *viper.Viper, sources map[string]*v1.Source) []*pipe.Worker {
@@ -67,17 +85,9 @@ func createWorkers(v *viper.Viper, sources map[string]*v1.Source) []*pipe.Worker
 		pipeConfig.SetDefault("rate.init", 10)
 		pipeConfig.SetDefault("rate.min", 1)
 		pipeConfig.SetDefault("rate.window", "30s")
-		pipeConfig.SetDefault("http.path", "/")
-		pipeConfig.SetDefault("http.host", "localhost")
-		pipeConfig.SetDefault("http.port", 80)
 		pipeConfig.SetDefault("source", "default")
-		httpEndpoint := pipeConfig.GetString("http.endpoint")
-		if httpEndpoint == "" {
-			httpEndpoint = fmt.Sprintf("http://%v:%v%v", pipeConfig.GetString("http.host"), pipeConfig.GetString("http.port"), pipeConfig.GetString("http.path"))
-		}
+		handler := createHandler(pipeConfig.Sub("handler"))
 		source := getSource(sources, pipeConfig.GetString("source"))
-
-		handler := handlers.NewHttpHandler(httpEndpoint)
 
 		var opts = []pipe.WorkerOption{}
 		writeToSource := pipeConfig.GetString("onError.writeTo.source")
@@ -121,14 +131,20 @@ func createListeners(v *viper.Viper, sources map[string]*v1.Source) []listeners.
 	return []listeners.Listener{listener}
 }
 
-func CreateApp(v *viper.Viper) (*App, error) {
-	err := utils.NormalizeEntityConfig(v, "pipe", "pipes")
+func CreateApp(v *viper.Viper) (_ *App, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	err = utils.NormalizeEntityConfig(v, "pipe", "pipes")
 	if err != nil {
-		return nil, err
+		return
 	}
 	err = utils.NormalizeEntityConfig(v, "source", "sources")
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	sources := createSources(v)

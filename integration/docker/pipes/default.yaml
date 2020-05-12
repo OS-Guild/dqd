@@ -1,6 +1,6 @@
 pipe:
   source: messages
-  http:
-    path: "/"
+  handler:
+    http:
   rate:
     window: 5s
