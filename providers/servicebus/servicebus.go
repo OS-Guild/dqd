@@ -2,6 +2,7 @@ package servicebus
 
 import (
 	"context"
+	"strings"
 
 	azservicebus "github.com/Azure/azure-service-bus-go"
 	"github.com/rs/zerolog"
@@ -10,14 +11,16 @@ import (
 )
 
 type ServiceBusClient struct {
-	topic         *azservicebus.Topic
-	subscription  *azservicebus.Subscription
-	logger        zerolog.Logger
-	preFetchCount int
+	topic                   *azservicebus.Topic
+	subscription            *azservicebus.Subscription
+	logger                  zerolog.Logger
+	preFetchCount           int
+	removeSerializationInfo bool
 }
 
 type ServiceBusMessage struct {
-	message *azservicebus.Message
+	message                 *azservicebus.Message
+	removeSerializationInfo bool
 }
 
 func createServiceBusClient(cfg *viper.Viper, logger *zerolog.Logger) *ServiceBusClient {
@@ -25,7 +28,6 @@ func createServiceBusClient(cfg *viper.Viper, logger *zerolog.Logger) *ServiceBu
 	namespace, err := azservicebus.NewNamespace(azservicebus.NamespaceWithConnectionString(cfg.GetString("connectionString")))
 	topicName := cfg.GetString("topic")
 	subscriptionName := cfg.GetString("subscription")
-	preFetchCount := cfg.GetInt("prefetchCount")
 	topic, err := namespace.NewTopic(topicName)
 	if err != nil {
 		panic("failed to initalize service bus client")
@@ -36,7 +38,8 @@ func createServiceBusClient(cfg *viper.Viper, logger *zerolog.Logger) *ServiceBu
 		topic,
 		subscription,
 		l,
-		preFetchCount,
+		cfg.GetInt("prefetchCount"),
+		cfg.GetBool("removeSerializationInfoInJson"),
 	}
 }
 
@@ -45,7 +48,12 @@ func (m *ServiceBusMessage) Id() string {
 }
 
 func (m *ServiceBusMessage) Data() string {
-	return string(m.message.Data)
+	data := string(m.message.Data)
+	println(m.removeSerializationInfo)
+	if m.removeSerializationInfo {
+		return strings.TrimRightFunc(strings.TrimLeftFunc(data, func(r rune) bool { return r != '{' && r != '[' }), func(r rune) bool { return r != '}' && r != ']' })
+	}
+	return data
 }
 
 func (m *ServiceBusMessage) Complete() error {
@@ -73,6 +81,7 @@ func (sb *ServiceBusClient) Iter(ctx context.Context, next v1.NextMessage) error
 		err = rec.ReceiveOne(ctx, azservicebus.HandlerFunc(func(ctx context.Context, m *azservicebus.Message) error {
 			message := &ServiceBusMessage{
 				m,
+				sb.removeSerializationInfo,
 			}
 			next(message)
 			return nil
