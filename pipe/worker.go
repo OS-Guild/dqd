@@ -12,12 +12,13 @@ import (
 
 func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProducer v1.Producer) {
 	m := ctx.Message()
+	logger.Warn().Err(err).Msg("Failed to handle messge")
 	if !m.Abort() {
 		if w.writeToErrorSource && errProducer != nil {
 			err = errProducer.Produce(ctx, &v1.RawMessage{m.Data()})
 		}
 		if err != nil {
-			logger.Error().Err(err).Msg("Failed to process message")
+			logger.Error().Err(err).Msg("Fail to abort or recover message")
 		}
 	}
 }
@@ -77,7 +78,6 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 	var count, lastBatch int64
 	maxItems := int64(w.concurrencyStartingPoint)
 	minConcurrency := int64(w.minConcurrency)
-	defer close(messages)
 
 	maxConcurrencyGauge.Set(float64(maxItems))
 
@@ -149,11 +149,11 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 		go func(ss *v1.Source) {
 			logger.Info().Str("source", ss.Name).Msg("Start reading from source")
 			consumer := ss.CreateConsumer()
-			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
+			select {
+			case done <- consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
 				messages <- v1.CreateRequestContext(ctx, ss.Name, m)
-			}))
-			if err != nil {
-				done <- err
+			})):
+			case <-ctx.Done():
 			}
 		}(s)
 	}
@@ -177,14 +177,21 @@ func (w *Worker) Start(ctx context.Context) error {
 	defer cancel()
 
 	go func() {
-		done <- w.readMessages(innerContext, messages, results)
+		select {
+		case done <- w.readMessages(innerContext, messages, results):
+		case <-ctx.Done():
+		}
 	}()
 
 	go func() {
-		done <- w.handleResults(innerContext, results)
+		select {
+		case done <- w.handleResults(innerContext, results):
+		case <-ctx.Done():
+		}
 	}()
 
 	select {
+
 	case <-ctx.Done():
 		return nil
 	case err := <-done:
