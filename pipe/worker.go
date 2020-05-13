@@ -18,7 +18,7 @@ func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProduc
 			err = errProducer.Produce(ctx, &v1.RawMessage{m.Data()})
 		}
 		if err != nil {
-			w.logger.Error().Err(err).Msg("Fail to abort or recover message")
+			w.logger.Error().Err(err).Msg("Failed to abort or recover message")
 		}
 	}
 }
