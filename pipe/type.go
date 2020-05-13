@@ -60,6 +60,7 @@ func WithOutput(source *v1.Source) WorkerOption {
 func NewWorker(name string, sources []*v1.Source, handler handlers.Handler, opts ...WorkerOption) *Worker {
 	logger = logger.With().Str("pipe", name).Logger()
 	w := &Worker{
+		name:    name,
 		sources: sources,
 		handler: handler,
 		logger:  &logger,

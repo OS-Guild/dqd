@@ -42,7 +42,7 @@ func (m *AzureMessage) Data() string {
 	return m.Text
 }
 
-func (m *AzureMessage) Done() error {
+func (m *AzureMessage) Complete() error {
 	res, err := m.azureClient.messagesURL.NewMessageIDURL(azqueue.MessageID(m.Id())).Delete(context.Background(), azqueue.PopReceipt(m.PopReceipt))
 	if err != nil {
 		return err

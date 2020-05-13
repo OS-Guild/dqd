@@ -33,6 +33,14 @@ func CreateRequestContext(ctx context.Context, source string, m Message) *Reques
 	}
 }
 
+func (r *RequestContext) Abort() bool {
+	return r.Message().Abort()
+}
+
+func (r *RequestContext) Complete() error {
+	return r.Message().Complete()
+}
+
 func (r *RequestContext) Message() Message {
 	m, _ := r.Value(ContextKeyMessage).(Message)
 	return m
@@ -43,7 +51,7 @@ func (r *RequestContext) Source() string {
 	return s
 }
 
-func (r *RequestContext) StartTime() time.Time {
+func (r *RequestContext) DequeueTime() time.Time {
 	s, _ := r.Value(ContextKeyStart).(time.Time)
 	return s
 }

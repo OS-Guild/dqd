@@ -43,7 +43,6 @@ var sourceProviders = map[string]struct {
 }
 
 func createSources(v *viper.Viper) map[string]*v1.Source {
-	utils.NormalizeEntityConfig(v, "source", "sources")
 	sources := map[string]*v1.Source{}
 	for sourceName, subSource := range utils.ViperSubMap(v, "sources") {
 		sourceType := subSource.GetString("type")

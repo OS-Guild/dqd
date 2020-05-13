@@ -44,7 +44,7 @@ func (m *ServiceBusMessage) Data() string {
 	return string(m.message.Data)
 }
 
-func (m *ServiceBusMessage) Done() error {
+func (m *ServiceBusMessage) Complete() error {
 	return m.message.Complete(context.Background())
 }
 

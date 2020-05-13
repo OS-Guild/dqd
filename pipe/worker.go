@@ -24,10 +24,11 @@ func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProduc
 }
 
 func (w *Worker) handleRequest(ctx *v1.RequestContext) (_ *v1.RawMessage, err error) {
+	start := time.Now()
 	defer func() {
 		source := ctx.Source()
-		t := float64(time.Since(ctx.StartTime())) / float64(time.Second)
-		metrics.HandlerProcessingHistogram.WithLabelValues(w.name, source, strconv.FormatBool(err != nil)).Observe(t)
+		t := float64(time.Since(start)) / float64(time.Second)
+		metrics.HandlerProcessingHistogram.WithLabelValues(w.name, source, strconv.FormatBool(err == nil)).Observe(t)
 	}()
 	return w.handler.Handle(ctx, ctx.Message())
 }
@@ -54,18 +55,28 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 		go func() {
 			m, err := reqCtx.Result()
 			defer func() {
-				t := float64(time.Since(reqCtx.StartTime())) / float64(time.Second)
-				metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, reqCtx.Source(), strconv.FormatBool(err != nil)).Observe(t)
-			}()
-			if err != nil {
-				w.handleErrorRequest(reqCtx, err, errorP)
-			} else if m != nil && outputP != nil {
-				err := outputP.Produce(reqCtx, m)
+				defer func() {
+					t := float64(time.Since(reqCtx.DequeueTime())) / float64(time.Second)
+					metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, reqCtx.Source(), strconv.FormatBool(err == nil)).Observe(t)
+				}()
 				if err != nil {
 					w.handleErrorRequest(reqCtx, err, errorP)
 				}
-			}
+			}()
 
+			if err != nil {
+				return
+			}
+			err = reqCtx.Complete()
+			if err != nil {
+				return
+			}
+			if m != nil && outputP != nil {
+				err := outputP.Produce(reqCtx, m)
+				if err != nil {
+					return
+				}
+			}
 		}()
 	}
 	return nil
@@ -96,7 +107,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 			atomic.AddInt64(&count, 1)
 
 			go func(r *v1.RequestContext) {
-				result, err := w.handler.Handle(r, r.Message())
+				result, err := w.handleRequest(r)
 				atomic.AddInt64(&count, -1)
 				if !w.fixedRate {
 					atomic.AddInt64(&lastBatch, 1)

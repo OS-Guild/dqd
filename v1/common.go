@@ -17,7 +17,7 @@ type RawMessage struct {
 type Message interface {
 	Id() string
 	Data() string
-	Done() error
+	Complete() error
 	Abort() bool
 }
 

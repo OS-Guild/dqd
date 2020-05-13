@@ -54,7 +54,7 @@ func (m *SQSMessage) Data() string {
 	return *m.Body
 }
 
-func (m *SQSMessage) Done() error {
+func (m *SQSMessage) Complete() error {
 	_, err := m.client.sqs.DeleteMessage(&sqs.DeleteMessageInput{
 		QueueUrl:      &m.client.url,
 		ReceiptHandle: m.ReceiptHandle,
