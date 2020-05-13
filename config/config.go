@@ -63,6 +63,17 @@ func getSource(sources map[string]*v1.Source, sourceName string) *v1.Source {
 	return source
 }
 
+func getPipeSources(sources map[string]*v1.Source, v *viper.Viper) (pipeSources []*v1.Source) {
+	sourcesConfig := v.GetStringSlice("sources")
+	for _, s := range sourcesConfig {
+		pipeSources = append(pipeSources, getSource(sources, s))
+	}
+	if len(pipeSources) == 0 {
+		pipeSources = []*v1.Source{getSource(sources, v.GetString("source"))}
+	}
+	return
+}
+
 func createHandler(v *viper.Viper) handlers.Handler {
 	if v == nil {
 		panic("no handler define for pipe, use 'none' handler if it's the desired behavior")
@@ -90,7 +101,8 @@ func createWorkers(v *viper.Viper, sources map[string]*v1.Source) []*pipe.Worker
 		pipeConfig.SetDefault("rate.window", "30s")
 		pipeConfig.SetDefault("source", "default")
 		handler := createHandler(pipeConfig.Sub("handler"))
-		source := getSource(sources, pipeConfig.GetString("source"))
+
+		pipeSources := getPipeSources(sources, pipeConfig)
 
 		var opts = []pipe.WorkerOption{}
 		writeToSource := pipeConfig.GetString("onError.writeTo.source")
@@ -116,7 +128,7 @@ func createWorkers(v *viper.Viper, sources map[string]*v1.Source) []*pipe.Worker
 
 		wList = append(wList, pipe.NewWorker(
 			name,
-			[]*v1.Source{source},
+			pipeSources,
 			handler,
 			opts...,
 		))
