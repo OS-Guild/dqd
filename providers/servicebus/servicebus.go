@@ -49,7 +49,6 @@ func (m *ServiceBusMessage) Id() string {
 
 func (m *ServiceBusMessage) Data() string {
 	data := string(m.message.Data)
-	println(m.removeSerializationInfo)
 	if m.removeSerializationInfo {
 		return strings.TrimRightFunc(strings.TrimLeftFunc(data, func(r rune) bool { return r != '{' && r != '[' }), func(r rune) bool { return r != '}' && r != ']' })
 	}
