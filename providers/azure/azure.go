@@ -57,7 +57,7 @@ func (m *AzureMessage) Id() string {
 	return m.ID.String()
 }
 
-func (m *AzureMessage) Abort() bool {
+func (m *AzureMessage) Abort(error) bool {
 	return m.DequeueCount < m.azureClient.MaxDequeueCount
 }
 

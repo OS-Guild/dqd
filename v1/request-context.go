@@ -33,8 +33,8 @@ func CreateRequestContext(ctx context.Context, source string, m Message) *Reques
 	}
 }
 
-func (r *RequestContext) Abort() bool {
-	return r.Message().Abort()
+func (r *RequestContext) Abort(e error) bool {
+	return r.Message().Abort(e)
 }
 
 func (r *RequestContext) Complete() error {

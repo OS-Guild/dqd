@@ -52,7 +52,7 @@ func (m *ServiceBusMessage) Complete() error {
 	return m.message.Complete(context.Background())
 }
 
-func (m *ServiceBusMessage) Abort() bool {
+func (m *ServiceBusMessage) Abort(error) bool {
 	m.message.Abandon(context.Background())
 	return true
 }

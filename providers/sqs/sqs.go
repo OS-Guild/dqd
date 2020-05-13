@@ -62,7 +62,7 @@ func (m *SQSMessage) Complete() error {
 	return err
 }
 
-func (m *SQSMessage) Abort() bool {
+func (m *SQSMessage) Abort(error) bool {
 	return true
 }
 

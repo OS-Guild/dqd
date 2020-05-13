@@ -18,7 +18,7 @@ type Message interface {
 	Id() string
 	Data() string
 	Complete() error
-	Abort() bool
+	Abort(error) bool
 }
 
 type Consumer interface {

@@ -13,7 +13,7 @@ import (
 func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProducer v1.Producer) {
 	m := ctx.Message()
 	logger.Warn().Err(err).Msg("Failed to handle messge")
-	if !m.Abort() {
+	if !m.Abort(err) {
 		if w.writeToErrorSource && errProducer != nil {
 			err = errProducer.Produce(ctx, &v1.RawMessage{m.Data()})
 		}
