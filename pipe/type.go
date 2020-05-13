@@ -58,12 +58,12 @@ func WithOutput(source *v1.Source) WorkerOption {
 }
 
 func NewWorker(name string, sources []*v1.Source, handler handlers.Handler, opts ...WorkerOption) *Worker {
-	logger = logger.With().Str("pipe", name).Logger()
+	l := logger.With().Str("pipe", name).Logger()
 	w := &Worker{
 		name:    name,
 		sources: sources,
 		handler: handler,
-		logger:  &logger,
+		logger:  &l,
 	}
 	for _, o := range opts {
 		o(w)
