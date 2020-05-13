@@ -71,11 +71,21 @@ func main() {
 	ctx := utils.ContextWithSignal(context.Background())
 
 	for _, worker := range app.Workers {
-		go worker.Start(ctx)
+		go func() {
+			err := worker.Start(ctx)
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
 
 	for _, listeners := range app.Listeners {
-		go listeners.Listen(ctx)
+		go func() {
+			err := listeners.Listen(ctx)
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
 
 	if len(app.Workers) == 0 && len(app.Sources) == 0 {

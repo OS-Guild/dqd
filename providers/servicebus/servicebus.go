@@ -10,9 +10,10 @@ import (
 )
 
 type ServiceBusClient struct {
-	topic        *azservicebus.Topic
-	subscription *azservicebus.Subscription
-	logger       zerolog.Logger
+	topic         *azservicebus.Topic
+	subscription  *azservicebus.Subscription
+	logger        zerolog.Logger
+	preFetchCount int
 }
 
 type ServiceBusMessage struct {
@@ -20,9 +21,11 @@ type ServiceBusMessage struct {
 }
 
 func createServiceBusClient(cfg *viper.Viper, logger *zerolog.Logger) *ServiceBusClient {
+	cfg.SetDefault("prefetchCount", 1)
 	namespace, err := azservicebus.NewNamespace(azservicebus.NamespaceWithConnectionString(cfg.GetString("connectionString")))
 	topicName := cfg.GetString("topic")
 	subscriptionName := cfg.GetString("subscription")
+	preFetchCount := cfg.GetInt("prefetchCount")
 	topic, err := namespace.NewTopic(topicName)
 	if err != nil {
 		panic("failed to initalize service bus client")
@@ -33,6 +36,7 @@ func createServiceBusClient(cfg *viper.Viper, logger *zerolog.Logger) *ServiceBu
 		topic,
 		subscription,
 		l,
+		preFetchCount,
 	}
 }
 
@@ -54,22 +58,29 @@ func (m *ServiceBusMessage) Abort() bool {
 }
 
 func (sb *ServiceBusClient) Iter(ctx context.Context, next v1.NextMessage) error {
-	rec, err := sb.subscription.NewReceiver(ctx, azservicebus.ReceiverWithReceiveMode(azservicebus.PeekLockMode),
-		azservicebus.ReceiverWithPrefetchCount(10))
+	rec, err := sb.subscription.NewReceiver(ctx, azservicebus.ReceiverWithReceiveMode(azservicebus.PeekLockMode), azservicebus.ReceiverWithPrefetchCount(10))
 	if err != nil {
 		return err
 	}
+	for {
+		select {
+		case <-ctx.Done():
+			break
+		default:
 
-	handle := rec.Listen(ctx, azservicebus.HandlerFunc(func(ctx context.Context, m *azservicebus.Message) error {
-		message := &ServiceBusMessage{
-			m,
 		}
-		next(message)
-		return nil
-	}))
 
-	<-handle.Done()
-	return handle.Err()
+		err = rec.ReceiveOne(ctx, azservicebus.HandlerFunc(func(ctx context.Context, m *azservicebus.Message) error {
+			message := &ServiceBusMessage{
+				m,
+			}
+			next(message)
+			return nil
+		}))
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (c *ServiceBusClient) Produce(ctx context.Context, m *v1.RawMessage) error {

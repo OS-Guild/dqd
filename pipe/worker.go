@@ -52,7 +52,7 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 			return nil
 		default:
 		}
-		go func() {
+		go func(reqCtx *v1.RequestContext) {
 			m, err := reqCtx.Result()
 			defer func() {
 				defer func() {
@@ -77,7 +77,7 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 					return
 				}
 			}
-		}()
+		}(reqCtx)
 	}
 	return nil
 }
@@ -160,11 +160,13 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 		go func(ss *v1.Source) {
 			logger.Info().Str("source", ss.Name).Msg("Start reading from source")
 			consumer := ss.CreateConsumer()
-			select {
-			case done <- consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
+			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
 				messages <- v1.CreateRequestContext(ctx, ss.Name, m)
-			})):
+			}))
+			select {
 			case <-ctx.Done():
+			default:
+				done <- err
 			}
 		}(s)
 	}
@@ -188,16 +190,20 @@ func (w *Worker) Start(ctx context.Context) error {
 	defer cancel()
 
 	go func() {
+		err := w.readMessages(innerContext, messages, results)
 		select {
-		case done <- w.readMessages(innerContext, messages, results):
 		case <-ctx.Done():
+		default:
+			done <- err
 		}
 	}()
 
 	go func() {
+		err := w.handleResults(innerContext, results)
 		select {
-		case done <- w.handleResults(innerContext, results):
 		case <-ctx.Done():
+		default:
+			done <- err
 		}
 	}()
 
