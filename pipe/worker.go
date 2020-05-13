@@ -15,7 +15,7 @@ func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProduc
 	w.logger.Warn().Err(err).Msg("Failed to handle messge")
 	if !m.Abort(err) {
 		if w.writeToErrorSource && errProducer != nil {
-			err = errProducer.Produce(ctx, &v1.RawMessage{m.Data()})
+			err = errProducer.Produce(ctx, &v1.RawMessage{Data: m.Data()})
 		}
 		if err != nil {
 			w.logger.Error().Err(err).Msg("Failed to abort or recover message")
@@ -112,7 +112,12 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 				if !w.fixedRate {
 					atomic.AddInt64(&lastBatch, 1)
 				}
-				results <- r.WithResult(result, err)
+				select {
+				case <-ctx.Done():
+				default:
+					results <- r.WithResult(result, err)
+				}
+
 			}(message)
 		}
 	}()
