@@ -14,7 +14,9 @@ import (
 
 	"github.com/soluto/dqd/cmd"
 	"github.com/soluto/dqd/config"
+	"github.com/soluto/dqd/listeners"
 	"github.com/soluto/dqd/metrics"
+	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/utils"
 )
 
@@ -71,21 +73,21 @@ func main() {
 	ctx := utils.ContextWithSignal(context.Background())
 
 	for _, worker := range app.Workers {
-		go func() {
+		go func(worker *pipe.Worker) {
 			err := worker.Start(ctx)
 			if err != nil {
 				panic(err)
 			}
-		}()
+		}(worker)
 	}
 
-	for _, listeners := range app.Listeners {
-		go func() {
-			err := listeners.Listen(ctx)
+	for _, listener := range app.Listeners {
+		go func(listener listeners.Listener) {
+			err := listener.Listen(ctx)
 			if err != nil {
 				panic(err)
 			}
-		}()
+		}(listener)
 	}
 
 	if len(app.Workers) == 0 && len(app.Sources) == 0 {

@@ -9,8 +9,6 @@ import (
 	v1 "github.com/soluto/dqd/v1"
 )
 
-var logger = log.With().Str("scope", "Worker").Logger()
-
 type WorkerOption func(w *Worker)
 
 type Worker struct {
@@ -58,7 +56,7 @@ func WithOutput(source *v1.Source) WorkerOption {
 }
 
 func NewWorker(name string, sources []*v1.Source, handler handlers.Handler, opts ...WorkerOption) *Worker {
-	l := logger.With().Str("pipe", name).Logger()
+	l := log.With().Str("scope", "Worker").Str("pipe", name).Logger()
 	w := &Worker{
 		name:    name,
 		sources: sources,

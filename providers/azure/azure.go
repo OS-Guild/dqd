@@ -47,7 +47,7 @@ func (m *AzureMessage) Complete() error {
 	if err != nil {
 		return err
 	}
-	if res.StatusCode() < 400 {
+	if res.StatusCode() >= 400 {
 		return fmt.Errorf("error deleting message")
 	}
 	return nil

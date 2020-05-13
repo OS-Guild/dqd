@@ -12,13 +12,13 @@ import (
 
 func (w *Worker) handleErrorRequest(ctx *v1.RequestContext, err error, errProducer v1.Producer) {
 	m := ctx.Message()
-	logger.Warn().Err(err).Msg("Failed to handle messge")
+	w.logger.Warn().Err(err).Msg("Failed to handle messge")
 	if !m.Abort(err) {
 		if w.writeToErrorSource && errProducer != nil {
 			err = errProducer.Produce(ctx, &v1.RawMessage{m.Data()})
 		}
 		if err != nil {
-			logger.Error().Err(err).Msg("Fail to abort or recover message")
+			w.logger.Error().Err(err).Msg("Fail to abort or recover message")
 		}
 	}
 }
@@ -123,7 +123,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 			var prev int64
 			timer := time.NewTimer(w.dynamicRateBatchWindow)
 			shouldUpscale := true
-			logger.Debug().Int64("concurrency", maxItems).Msg("Using dynamic concurrency")
+			w.logger.Debug().Int64("concurrency", maxItems).Msg("Using dynamic concurrency")
 			for {
 				timer.Reset(w.dynamicRateBatchWindow)
 
@@ -150,7 +150,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 				maxConcurrencyGauge.Set(float64(maxItems))
 
 				prev = curr
-				logger.Debug().Int64("concurrency", maxItems).Float64("rate", float64(curr)/w.dynamicRateBatchWindow.Seconds()).Msg("tuning concurrency")
+				w.logger.Debug().Int64("concurrency", maxItems).Float64("rate", float64(curr)/w.dynamicRateBatchWindow.Seconds()).Msg("tuning concurrency")
 			}
 		}()
 	}
@@ -158,7 +158,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 	defer close(done)
 	for _, s := range w.sources {
 		go func(ss *v1.Source) {
-			logger.Info().Str("source", ss.Name).Msg("Start reading from source")
+			w.logger.Info().Str("source", ss.Name).Msg("Start reading from source")
 			consumer := ss.CreateConsumer()
 			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
 				messages <- v1.CreateRequestContext(ctx, ss.Name, m)
@@ -179,7 +179,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 }
 
 func (w *Worker) Start(ctx context.Context) error {
-	logger.Info().Msg("Starting pipe")
+	w.logger.Info().Msg("Starting pipe")
 	messages := make(chan *v1.RequestContext, w.minConcurrency)
 	defer close(messages)
 	results := make(chan *v1.RequestContext, w.minConcurrency)
