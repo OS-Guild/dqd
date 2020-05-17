@@ -166,7 +166,11 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 			w.logger.Info().Str("source", ss.Name).Msg("Start reading from source")
 			consumer := ss.CreateConsumer()
 			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
-				messages <- v1.CreateRequestContext(ctx, ss.Name, m)
+				select {
+				case <-ctx.Done():
+				default:
+					messages <- v1.CreateRequestContext(ctx, ss.Name, m)
+				}
 			}))
 			select {
 			case <-ctx.Done():
