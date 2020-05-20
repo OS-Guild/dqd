@@ -1,0 +1,21 @@
+pipes:
+  - source: sqs
+    handler:
+      http:
+        path: "/?no-increment=true"
+    output: azure
+    rate:
+      window: 5s
+  - source: azure
+    handler:
+      http:
+        path: "/?error=0.1"
+    onError:
+      writeTo:
+        source: azure-error
+    rate:
+      window: 5s
+  - source: azure-error
+    handler:
+      http:
+        path: "/"

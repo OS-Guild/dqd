@@ -1,0 +1,11 @@
+version: "3.7"
+
+services: 
+  dqd:
+    build: "../.."
+    image: soluto/dqd
+    volumes: 
+    - ./pipes/${PIPES_CONFIG:-default}.yaml:/etc/dqd/pipes.yaml
+    ports: 
+    - 9999:9999
+    - 8888:8888

@@ -1,0 +1,25 @@
+sources:
+  azure:
+    type: azure-queue
+    sasToken: "?st=2020-04-27T13%3A57%3A25Z&se=2021-04-28T13%3A57%3A00Z&sp=raup&sv=2018-03-28&sig=ZzcxmPYHU7O1B4ixnpsKtxqSAGKsHqUf1cI%2FNbu6Qew%3D"
+    connection: http://azure:10001/devstoreaccount1
+    maxDequeueCount: 0
+    queue: dqd
+  azure-error:
+    type: azure-queue
+    sasToken: "?st=2020-04-27T15%3A35%3A59Z&se=2021-04-28T15%3A35%3A00Z&sp=raup&sv=2018-03-28&sig=mpll9GgIR3SULQFAOgCYkg%2FEq1LIbP8Z%2FBkgn40QRM4%3D"
+    connection: http://azure:10001/devstoreaccount1
+    queue: dqd-error
+  messages:
+    type: azure-queue
+    sasToken: "?st=2020-04-27T13%3A57%3A25Z&se=2021-04-28T13%3A57%3A00Z&sp=raup&sv=2018-03-28&sig=ZzcxmPYHU7O1B4ixnpsKtxqSAGKsHqUf1cI%2FNbu6Qew%3D"
+    connection: http://azure:10001/devstoreaccount1
+    maxDequeueCount: 0
+    queue: dqd
+  messages-error:
+    type: azure-queue
+    sasToken: "?st=2020-04-27T15%3A35%3A59Z&se=2021-04-28T15%3A35%3A00Z&sp=raup&sv=2018-03-28&sig=mpll9GgIR3SULQFAOgCYkg%2FEq1LIbP8Z%2FBkgn40QRM4%3D"
+    connection: http://azure:10001/devstoreaccount1
+    queue: dqd-error
+  
+  

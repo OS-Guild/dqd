@@ -1,0 +1,13 @@
+pipes:
+- source: messages
+  handler:
+    http:
+      path: "/?error=0.1"
+  onError:
+    writeTo:
+      source: messages-error
+  rate:
+    window: 5s
+- source: messages-error
+  handler:
+    http:

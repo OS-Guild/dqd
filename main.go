@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -12,16 +12,18 @@ import (
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
+	"github.com/soluto/dqd/cmd"
+	"github.com/soluto/dqd/config"
+	"github.com/soluto/dqd/listeners"
 	"github.com/soluto/dqd/metrics"
-	"github.com/soluto/dqd/providers/azure"
-	"github.com/soluto/dqd/queue"
+	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/utils"
 )
 
 var logger = log.With().Str("scope", "Main").Logger()
 
 func waitForHealth() {
-	healthEndpoint := os.Getenv("HEALTH_ENDPOINT")
+	healthEndpoint := os.Getenv("probe")
 	if healthEndpoint == "" {
 		return
 	}
@@ -48,28 +50,52 @@ func waitForHealth() {
 }
 
 func main() {
-	logLevel := utils.GetenvInt("LOG_LEVEL", 1)
+	conf, err := cmd.Load()
+	if err != nil {
+		cmd.ConfigurationError(err)
+	}
+	conf.SetDefault("logLevel", 1)
+	conf.SetDefault("metricsPort", 8888)
+	logLevel := conf.GetInt("logLevel")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 
-	metricsPort := os.Getenv("METRICS_PORT")
-	if metricsPort == "" {
-		metricsPort = "8888"
-	}
+	metricsPort := conf.GetInt("metricsPort")
 
 	waitForHealth()
 
-	queueClient := (&azure.AzureClientFactory{}).Create()
-	endpoint := utils.GetenvRequired("ENDPOINT")
-
-	offloader := queue.Offloader{
-		Client:                   queueClient,
-		Handler:                  queue.NewHandler(endpoint),
-		FixedRate:                strings.ToLower(os.Getenv("USE_FIXED_RATE")) == "true",
-		ConcurrencyStartingPoint: utils.GetenvInt("CONCURRENCY_STARTING_POINT", 10),
-		MinConcurrency:           utils.GetenvInt("MIN_CONCURRENCY", 1),
+	app, err := config.CreateApp(conf)
+	if err != nil {
+		cmd.ConfigurationError(err)
 	}
 
 	go metrics.Start(metricsPort)
 
-	offloader.Start(true)
+	ctx := utils.ContextWithSignal(context.Background())
+
+	for _, worker := range app.Workers {
+		go func(worker *pipe.Worker) {
+			err := worker.Start(ctx)
+			if err != nil {
+				panic(err)
+			}
+		}(worker)
+	}
+
+	for _, listener := range app.Listeners {
+		go func(listener listeners.Listener) {
+			err := listener.Listen(ctx)
+			if err != nil {
+				panic(err)
+			}
+		}(listener)
+	}
+
+	if len(app.Workers) == 0 && len(app.Sources) == 0 {
+		cmd.ConfigurationError(fmt.Errorf("no workers or sources are defiend"))
+	}
+
+	select {
+	case <-ctx.Done():
+		logger.Info().Msg("Shutting Down")
+	}
 }

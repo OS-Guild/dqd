@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,87 +10,53 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var MaxConcurrencyGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: "offload",
+var logger = log.With().Str("scope", "Metrics").Logger()
+
+var WorkerMaxConcurrencyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "worker",
 	Subsystem: "concurrent",
 	Name:      "max",
 	Help:      "max concurrent messages",
-})
-var BatchSizeGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-	Namespace: "offload",
+}, []string{"source"})
+var WorkerBatchSizeGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "worker",
 	Subsystem: "concurrent",
 	Name:      "size",
 	Help:      "concurrent message handling",
-})
-var OffloadSummary = prometheus.NewSummary(prometheus.SummaryOpts{
-	Namespace: "offload",
-	Name:      "handle",
-	Help:      "offloading total handling summary",
-})
-var MessageDequeueCount = prometheus.NewCounter(prometheus.CounterOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "dequeue_count",
-	Help:      "message dequeue counter",
-})
+}, []string{"source"})
 
-var messageSummaryLabels = []string{"success"}
-var GetMessagesSummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "get",
-	Help:      "summary for get queue messages",
-}, messageSummaryLabels)
-var DeleteMessagesSummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "delete",
-	Help:      "summary for delete queue messages",
-}, messageSummaryLabels)
-var PostMessagesSummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "post",
-	Help:      "summary for post queue messages",
-}, messageSummaryLabels)
-var HandleMessagesSummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-	Namespace: "queue",
-	Subsystem: "message",
-	Name:      "handle",
-	Help:      "summary for handle queue messages",
-}, messageSummaryLabels)
+var HandlerProcessingHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "worker",
+	Name:      "handler_processing",
+	Help:      "handler processing time",
+}, []string{"pipe", "source", "success"})
 
-func StartTimerWithLabels(s *prometheus.SummaryVec) func(...string) {
+var PipeProcessingMessagesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "worker",
+	Name:      "pipe_processing",
+	Help:      "Pipe processing messages",
+}, []string{"pipe", "source", "success"})
+
+func StartTimer(h *prometheus.HistogramVec) func(...string) {
 	start := time.Now()
 	return func(labels ...string) {
 		total := time.Since(start)
-		s.WithLabelValues(labels...).Observe(float64(total))
+		h.WithLabelValues(labels...).Observe(float64(total) / float64(time.Second))
 	}
 }
 
-func StartTimer(s *prometheus.Summary) func() {
-	start := time.Now()
-	return func() {
-		total := time.Since(start)
-		obs := *s
-		obs.Observe(float64(total))
-	}
-}
-
-func Start(metricsPort string) {
+func Start(metricsPort int) {
 	prometheus.MustRegister(
-		MaxConcurrencyGauge,
-		BatchSizeGauge,
-		OffloadSummary,
-		GetMessagesSummary,
-		DeleteMessagesSummary,
-		PostMessagesSummary,
-		HandleMessagesSummary,
-		MessageDequeueCount)
+		HandlerProcessingHistogram,
+		PipeProcessingMessagesHistogram,
+		WorkerBatchSizeGauge,
+		WorkerMaxConcurrencyGauge,
+	)
 
 	http.Handle("/metrics", promhttp.Handler())
-	err := http.ListenAndServe(":"+metricsPort, nil)
+	logger.Info().Msgf("listening port for metrics: %v", metricsPort)
+	err := http.ListenAndServe(fmt.Sprintf(":%v", metricsPort), nil)
 	if err != nil {
-		log.Error().Err(err).Str("scope", "Metrics").Msg("Failed starting prometheus service")
+		logger.Error().Err(err).Str("scope", "Metrics").Msg("Failed starting prometheus service")
 	}
 }

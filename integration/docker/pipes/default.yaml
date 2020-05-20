@@ -1,0 +1,6 @@
+pipe:
+  source: messages
+  handler:
+    http:
+  rate:
+    window: 5s
