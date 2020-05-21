@@ -1,4 +1,8 @@
-on: push
+on: 
+  push:
+    paths-ignore:
+    - 'docs/**'
+    - README.md
 jobs:
   test:
     runs-on: ubuntu-latest
