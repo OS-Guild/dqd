@@ -14,6 +14,13 @@ type httpHandler struct {
 	client *gentleman.Client
 }
 
+type HttpHandlerOptions struct {
+	Endpoint string
+	Method   string
+	Host     string
+	Headers  map[string]string
+}
+
 var handlerLogger = log.With().Str("scope", "Handler")
 
 func (h *httpHandler) Handle(ctx *v1.RequestContext, message v1.Message) (*v1.RawMessage, HandlerError) {
@@ -34,10 +41,21 @@ func (h *httpHandler) Handle(ctx *v1.RequestContext, message v1.Message) (*v1.Ra
 	}, nil
 }
 
-func NewHttpHandler(endpoint string) Handler {
+func NewHttpHandler(options *HttpHandlerOptions) Handler {
 	client := gentleman.New().
-		URL(endpoint).
+		URL(options.Endpoint).
+		Method(options.Method).
 		Use(timeout.Request(2 * time.Minute))
+
+	if options.Host != "" {
+		client.AddHeader("Host", options.Host)
+	}
+
+	if options.Headers != nil {
+		for header, value := range options.Headers {
+			client.AddHeader(header, value)
+		}
+	}
 
 	return &httpHandler{
 		client,
