@@ -84,12 +84,23 @@ func createHandler(v *viper.Viper) handlers.Handler {
 	v.SetDefault("http.path", "/")
 	v.SetDefault("http.host", "localhost")
 	v.SetDefault("http.port", 80)
+	v.SetDefault("http.method", "POST")
+	v.SetDefault("http.host", "")
+	v.SetDefault("http.headers", map[string]string{})
 
 	httpEndpoint := v.GetString("http.endpoint")
 	if httpEndpoint == "" {
 		httpEndpoint = fmt.Sprintf("http://%v:%v%v", v.GetString("http.host"), v.GetString("http.port"), v.GetString("http.path"))
 	}
-	return handlers.NewHttpHandler(httpEndpoint)
+
+	options := &handlers.HttpHandlerOptions{
+		Endpoint: httpEndpoint,
+		Method:   v.GetString("http.method"),
+		Host:     v.GetString("http.host"),
+		Headers:  v.GetStringMapString("http.headers"),
+	}
+
+	return handlers.NewHttpHandler(options)
 }
 
 func createWorkers(v *viper.Viper, sources map[string]*v1.Source) []*pipe.Worker {

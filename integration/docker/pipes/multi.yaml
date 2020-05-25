@@ -18,4 +18,6 @@ pipes:
   - source: azure-error
     handler:
       http:
-        path: "/"
+        headers:
+          x-client-id: testing
+        path: "/?require-header=X-Client-Id,testing"
