@@ -15,7 +15,7 @@ jobs:
           DOCKER_BUILDKIT: 1
           DOCKER_CLI_EXPERIMENTAL: enabled
         working-directory: ./integration/docker
-        run: docker buildx bake -f ./docker-compose.base.yaml -f ./docker-compose.worker.yaml -f ./docker-compose.producer.yaml --load  
+        run: docker buildx bake  --set "dqd.cache-to=soluto/dqd:build-cache-dqd" --set "dqd.cache-from=soluto/dqd:build-cache-dqd" --set "worker.cache-to=soluto/dqd:build-cache-worker" --set "worker.cache-from=soluto/dqd:build-cache-worker" --set "producer.cache-to=soluto/dqd:build-cache-producer"  --set "producer.cache-from=soluto/dqd:build-cache-producer"   -f ./docker-compose.base.yaml -f ./docker-compose.worker.yaml -f ./docker-compose.producer.yaml --load
       - name: test-multi
         working-directory: ./integration/tests
         run: ./multi.sh
