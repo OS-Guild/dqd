@@ -14,7 +14,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: install latest buildx
         run: mkdir -p ~/.docker/cli-plugins && wget -O ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.4.1/buildx-v0.4.1.linux-amd64 && chmod a+x  ~/.docker/cli-plugins/docker-buildx
-      
+      - name: login
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo $DOCKERHUB_TOKEN | docker login --username solutodqd --password-stdin
       - name: build
         env:
           DOCKER_BUILDKIT: 1
