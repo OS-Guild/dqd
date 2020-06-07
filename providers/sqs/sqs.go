@@ -32,6 +32,7 @@ func createInt64Ref(x int64) *int64 {
 func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
 	awsConfig := aws.NewConfig().WithRegion(cfg.GetString("region"))
+
 	endpoint := cfg.GetString("endpoint")
 	visibilityTimeoutInSeconds := cfg.GetInt64("visibilityTimeoutInSeconds")
 	if endpoint != "" {
@@ -148,4 +149,10 @@ func (factory *SQSClientFactory) CreateConsumer(cfg *viper.Viper, logger *zerolo
 
 func (factory *SQSClientFactory) CreateProducer(cfg *viper.Viper, logger *zerolog.Logger) v1.Producer {
 	return createSQSClient(cfg, logger)
+}
+
+func (h *SQSClient) HealthStatus() v1.HealthStatus {
+	return v1.HealthStatus{
+		"": v1.Healthy,
+	}
 }

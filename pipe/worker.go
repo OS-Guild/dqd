@@ -33,6 +33,10 @@ func (w *Worker) handleRequest(ctx *v1.RequestContext) (_ *v1.RawMessage, err er
 	return w.handler.Handle(ctx, ctx.Message())
 }
 
+func (w *Worker) healthStatus() v1.HealthStatus {
+	return w.Status
+}
+
 func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestContext) error {
 	var outputP v1.Producer
 	var errorP v1.Producer
@@ -92,7 +96,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 
 	maxConcurrencyGauge.Set(float64(maxItems))
 
-	// Handle messages
+	//TODO #15 Consider replacing this code with a goroutine pool library
 	go func() {
 		for message := range messages {
 			select {

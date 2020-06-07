@@ -24,6 +24,7 @@ type Worker struct {
 	concurrencyStartingPoint int
 	minConcurrency           int
 	writeToErrorSource       bool
+	Status                   v1.HealthStatus
 }
 
 func WithDynamicRate(start, min int, windowSize time.Duration) WorkerOption {
@@ -62,6 +63,10 @@ func NewWorker(name string, sources []*v1.Source, handler handlers.Handler, opts
 		sources: sources,
 		handler: handler,
 		logger:  &l,
+		/*
+			Status: &v1.HealthStatus{
+				"": v1.Init,
+			},*/
 	}
 	for _, o := range opts {
 		o(w)

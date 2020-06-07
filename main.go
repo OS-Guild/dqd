@@ -8,14 +8,15 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
 	"gopkg.in/eapache/go-resiliency.v1/retrier"
 	"gopkg.in/h2non/gentleman.v2"
 	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
+	"github.com/soluto/dqd/api"
 	"github.com/soluto/dqd/cmd"
 	"github.com/soluto/dqd/config"
 	"github.com/soluto/dqd/listeners"
-	"github.com/soluto/dqd/metrics"
 	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/utils"
 )
@@ -55,11 +56,14 @@ func main() {
 		cmd.ConfigurationError(err)
 	}
 	conf.SetDefault("logLevel", 1)
-	conf.SetDefault("metricsPort", 8888)
+	conf.SetDefault("apiPort", 8888)
 	logLevel := conf.GetInt("logLevel")
 	zerolog.SetGlobalLevel(zerolog.Level(logLevel))
 
-	metricsPort := conf.GetInt("metricsPort")
+	apiPort := conf.GetInt("metricsPort")
+	if apiPort == 0 {
+		apiPort = conf.GetInt("apiPort")
+	}
 
 	waitForHealth()
 
@@ -68,9 +72,9 @@ func main() {
 		cmd.ConfigurationError(err)
 	}
 
-	go metrics.Start(metricsPort)
-
 	ctx := utils.ContextWithSignal(context.Background())
+
+	go api.Start(ctx, apiPort)
 
 	for _, worker := range app.Workers {
 		go func(worker *pipe.Worker) {
