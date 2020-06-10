@@ -33,10 +33,6 @@ func (w *Worker) handleRequest(ctx *v1.RequestContext) (_ *v1.RawMessage, err er
 	return w.handler.Handle(ctx, ctx.Message())
 }
 
-func (w *Worker) healthStatus() v1.HealthStatus {
-	return w.Status
-}
-
 func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestContext) error {
 	var outputP v1.Producer
 	var errorP v1.Producer
@@ -84,6 +80,10 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 		}(reqCtx)
 	}
 	return nil
+}
+
+func (w *Worker) HealthStatus() v1.HealthStatus {
+	return w.probe.HealthStatus()
 }
 
 func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestContext, results chan *v1.RequestContext) error {
@@ -169,6 +169,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 		go func(ss *v1.Source) {
 			w.logger.Info().Str("source", ss.Name).Msg("Start reading from source")
 			consumer := ss.CreateConsumer()
+
 			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
 				select {
 				case <-ctx.Done():

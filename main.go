@@ -74,8 +74,6 @@ func main() {
 
 	ctx := utils.ContextWithSignal(context.Background())
 
-	go api.Start(ctx, apiPort)
-
 	for _, worker := range app.Workers {
 		go func(worker *pipe.Worker) {
 			err := worker.Start(ctx)
@@ -97,6 +95,8 @@ func main() {
 	if len(app.Workers) == 0 && len(app.Sources) == 0 {
 		cmd.ConfigurationError(fmt.Errorf("no workers or sources are defiend"))
 	}
+
+	go api.Start(ctx, apiPort, app.Workers[0])
 
 	select {
 	case <-ctx.Done():

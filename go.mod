@@ -13,6 +13,7 @@ require (
 	github.com/gorilla/mux v1.7.4
 	github.com/influxdata/tdigest v0.0.1 // indirect
 	github.com/jpillora/backoff v1.0.0
+	github.com/julienschmidt/httprouter v1.2.0
 	github.com/levigross/grequests v0.0.0-20190908174114-253788527a1a // indirect
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect
