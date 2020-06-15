@@ -2,6 +2,7 @@ package sqs
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,6 +18,7 @@ type SQSClient struct {
 	sqs                        sqs.SQS
 	url                        string
 	visibilityTimeoutInSeconds int64
+	unwrapSnsMessage           bool
 	logger                     *zerolog.Logger
 }
 
@@ -25,15 +27,16 @@ type SQSMessage struct {
 	client *SQSClient
 }
 
-func createInt64Ref(x int64) *int64 {
-	return &x
+type SnsMessage struct {
+	Message string `json:"Message"`
 }
 
 func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
+	cfg.SetDefault("unwrapSnsMessage", false)
+
 	awsConfig := aws.NewConfig().WithRegion(cfg.GetString("region"))
 	endpoint := cfg.GetString("endpoint")
-	visibilityTimeoutInSeconds := cfg.GetInt64("visibilityTimeoutInSeconds")
 	if endpoint != "" {
 		awsConfig.Endpoint = &endpoint
 	}
@@ -41,7 +44,8 @@ func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 	return &SQSClient{
 		*svc,
 		cfg.GetString("url"),
-		visibilityTimeoutInSeconds,
+		cfg.GetInt64("visibilityTimeoutInSeconds"),
+		cfg.GetBool("unwrapSnsMessage"),
 		logger,
 	}
 }
@@ -51,7 +55,19 @@ func (m *SQSMessage) Id() string {
 }
 
 func (m *SQSMessage) Data() string {
-	return *m.Body
+	if !m.client.unwrapSnsMessage {
+		return *m.Body
+	}
+
+	var snsMessage SnsMessage
+	err := json.Unmarshal([]byte(*m.Body), &snsMessage)
+
+	if err != nil {
+		m.client.logger.Warn().Err(err).Str("Body", *m.Body).Msg("Failed deserializing SNS style message, sending along original message instead")
+		return *m.Body
+	}
+
+	return snsMessage.Message
 }
 
 func (m *SQSMessage) Complete() error {
