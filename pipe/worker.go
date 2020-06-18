@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Jeffail/tunny"
 	"github.com/soluto/dqd/metrics"
 	v1 "github.com/soluto/dqd/v1"
 )
@@ -82,45 +83,50 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 	return nil
 }
 
+func closePoolOnDone(ctx context.Context, pool *tunny.Pool) {
+	<-ctx.Done()
+	pool.Close()
+}
+
+func channelPoolConnector(ctx context.Context, pool *tunny.Pool, messages chan *v1.RequestContext, results chan *v1.RequestContext) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, isChannelStillOpen := <-messages:
+			if !isChannelStillOpen {
+				return
+			}
+
+			result := pool.Process(msg)
+			results <- result.(*v1.RequestContext)
+		}
+	}
+}
+
 func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestContext, results chan *v1.RequestContext) error {
 	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.name)
 	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.name)
 
-	var count, lastBatch int64
-	maxItems := int64(w.concurrencyStartingPoint)
-	minConcurrency := int64(w.minConcurrency)
+	var lastBatch int64
+	maxItems := w.concurrencyStartingPoint
 
-	maxConcurrencyGauge.Set(float64(maxItems))
+	pool := tunny.NewFunc(w.concurrencyStartingPoint, func(i interface{}) interface{} {
+		maxConcurrencyGauge.Inc()
+		defer maxConcurrencyGauge.Dec()
 
-	// Handle messages
-	go func() {
-		for message := range messages {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			for count >= maxItems {
-				time.Sleep(10 * time.Millisecond)
-			}
+		message := i.(*v1.RequestContext)
+		result, err := w.handleRequest(message)
 
-			atomic.AddInt64(&count, 1)
-
-			go func(r *v1.RequestContext) {
-				result, err := w.handleRequest(r)
-				atomic.AddInt64(&count, -1)
-				if !w.fixedRate {
-					atomic.AddInt64(&lastBatch, 1)
-				}
-				select {
-				case <-ctx.Done():
-				default:
-					results <- r.WithResult(result, err)
-				}
-
-			}(message)
+		if !w.fixedRate {
+			atomic.AddInt64(&lastBatch, 1)
 		}
-	}()
+
+		return message.WithResult(result, err)
+	})
+
+	go closePoolOnDone(ctx, pool)
+	go channelPoolConnector(ctx, pool, messages, results)
 
 	// Handle throughput
 	if !w.fixedRate {
@@ -128,7 +134,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 			var prev int64
 			timer := time.NewTimer(w.dynamicRateBatchWindow)
 			shouldUpscale := true
-			w.logger.Debug().Int64("concurrency", maxItems).Msg("Using dynamic concurrency")
+			w.logger.Debug().Int("concurrency", maxItems).Msg("Using dynamic concurrency")
 			for {
 				timer.Reset(w.dynamicRateBatchWindow)
 
@@ -148,14 +154,14 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 					shouldUpscale = !shouldUpscale
 				}
 				if shouldUpscale {
-					atomic.AddInt64(&maxItems, 1)
-				} else if maxItems > minConcurrency {
-					atomic.AddInt64(&maxItems, -1)
+					pool.SetSize(pool.GetSize() + 1)
+				} else if maxItems > w.minConcurrency {
+					pool.SetSize(pool.GetSize() - 1)
 				}
 				maxConcurrencyGauge.Set(float64(maxItems))
 
 				prev = curr
-				w.logger.Debug().Int64("concurrency", maxItems).Float64("rate", float64(curr)/w.dynamicRateBatchWindow.Seconds()).Msg("tuning concurrency")
+				w.logger.Debug().Int("concurrency", maxItems).Float64("rate", float64(curr)/w.dynamicRateBatchWindow.Seconds()).Msg("tuning concurrency")
 			}
 		}()
 	}
