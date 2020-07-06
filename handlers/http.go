@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -12,13 +13,14 @@ import (
 )
 
 type httpHandler struct {
-	client *gentleman.Client
+	baseUrl *url.URL
+	client  *gentleman.Client
 }
 
 var handlerLogger = log.With().Str("scope", "Handler")
 
 func (h *httpHandler) HealthStatus() v1.HealthStatus {
-	conn, err := net.Dial("tcp", h.client.Context.Request.URL.Host)
+	conn, err := net.Dial("tcp", h.baseUrl.Host)
 	status := v1.Healthy
 	if err != nil {
 		status = v1.Error(err)
@@ -54,7 +56,9 @@ func NewHttpHandler(endpoint string) Handler {
 		URL(endpoint).
 		Use(timeout.Request(2 * time.Minute))
 
+	baseUrl, _ := url.Parse(endpoint)
 	return &httpHandler{
+		baseUrl,
 		client,
 	}
 }
