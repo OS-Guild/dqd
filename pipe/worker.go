@@ -28,7 +28,7 @@ func (w *Worker) handleRequest(ctx *v1.RequestContext) (_ *v1.RawMessage, err er
 	defer func() {
 		source := ctx.Source()
 		t := float64(time.Since(start)) / float64(time.Second)
-		metrics.HandlerProcessingHistogram.WithLabelValues(w.name, source, strconv.FormatBool(err == nil)).Observe(t)
+		metrics.HandlerProcessingHistogram.WithLabelValues(w.Name, source, strconv.FormatBool(err == nil)).Observe(t)
 	}()
 	return w.handler.Handle(ctx, ctx.Message())
 }
@@ -57,7 +57,7 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 			defer func() {
 				defer func() {
 					t := float64(time.Since(reqCtx.DequeueTime())) / float64(time.Second)
-					metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, reqCtx.Source(), strconv.FormatBool(err == nil)).Observe(t)
+					metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.Name, reqCtx.Source(), strconv.FormatBool(err == nil)).Observe(t)
 				}()
 				if err != nil {
 					w.handleErrorRequest(reqCtx, err, errorP)
@@ -86,15 +86,28 @@ func (w *Worker) HealthStatus() v1.HealthStatus {
 	return w.probe.HealthStatus()
 }
 
+func (w *Worker) waitForHandlerToBeReady() {
+	for {
+		status := w.handler.HealthStatus()
+		w.probe.UpdateStatus(status, "handler")
+		if status.IsHealthy() {
+			return
+		}
+		time.Sleep(time.Duration(time.Second))
+	}
+}
+
 func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestContext, results chan *v1.RequestContext) error {
-	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.name)
-	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.name)
+	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.Name)
+	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.Name)
 
 	var count, lastBatch int64
 	maxItems := int64(w.concurrencyStartingPoint)
 	minConcurrency := int64(w.minConcurrency)
 
 	maxConcurrencyGauge.Set(float64(maxItems))
+
+	w.waitForHandlerToBeReady()
 
 	//TODO #15 Consider replacing this code with a goroutine pool library
 	go func() {
@@ -165,6 +178,7 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 	}
 	done := make(chan error)
 	defer close(done)
+
 	for _, s := range w.sources {
 		go func(ss *v1.Source) {
 			w.logger.Info().Str("source", ss.Name).Msg("Start reading from source")

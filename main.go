@@ -3,15 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
-	"gopkg.in/eapache/go-resiliency.v1/retrier"
-	"gopkg.in/h2non/gentleman.v2"
-	"gopkg.in/h2non/gentleman.v2/plugins/timeout"
 
 	"github.com/soluto/dqd/api"
 	"github.com/soluto/dqd/cmd"
@@ -19,35 +13,17 @@ import (
 	"github.com/soluto/dqd/listeners"
 	"github.com/soluto/dqd/pipe"
 	"github.com/soluto/dqd/utils"
+	v1 "github.com/soluto/dqd/v1"
 )
 
 var logger = log.With().Str("scope", "Main").Logger()
 
-func waitForHealth() {
-	healthEndpoint := os.Getenv("probe")
-	if healthEndpoint == "" {
-		return
+func GetHealthChecker(workers []*pipe.Worker) v1.HealthChecker {
+	checkers := make(map[string]v1.HealthChecker)
+	for _, w := range workers {
+		checkers[w.Name] = w
 	}
-
-	client := gentleman.New().
-		URL(healthEndpoint).
-		Use(timeout.Request(5 * time.Second))
-
-	err := retrier.New(retrier.ConstantBackoff(120, time.Second), nil).Run(func() error {
-		res, err := client.Get().Send()
-		if err != nil {
-			return err
-		}
-		if !res.Ok {
-			return fmt.Errorf("Invalid server response: %d", res.StatusCode)
-
-		}
-		return nil
-	})
-
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Timeout while waiting for health")
-	}
+	return v1.CombineHealthCheckers(checkers)
 }
 
 func main() {
@@ -64,8 +40,6 @@ func main() {
 	if apiPort == 0 {
 		apiPort = conf.GetInt("apiPort")
 	}
-
-	waitForHealth()
 
 	app, err := config.CreateApp(conf)
 	if err != nil {
@@ -96,7 +70,7 @@ func main() {
 		cmd.ConfigurationError(fmt.Errorf("no workers or sources are defiend"))
 	}
 
-	go api.Start(ctx, apiPort, app.Workers[0])
+	go api.Start(ctx, apiPort, GetHealthChecker(app.Workers))
 
 	select {
 	case <-ctx.Done():

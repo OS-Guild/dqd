@@ -10,6 +10,10 @@ import (
 
 func CreateHealthHandler(healthChecker v1.HealthChecker) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		json.NewEncoder(w).Encode(healthChecker.HealthStatus())
+		s := healthChecker.HealthStatus()
+		if !s.IsHealthy() {
+			w.WriteHeader(500)
+		}
+		json.NewEncoder(w).Encode(s)
 	}
 }

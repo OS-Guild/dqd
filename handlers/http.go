@@ -22,8 +22,9 @@ func (h *httpHandler) HealthStatus() v1.HealthStatus {
 	status := v1.Healthy
 	if err != nil {
 		status = v1.Error(err)
+	} else {
+		net.Conn(conn).Close()
 	}
-	net.Conn(conn).Close()
 
 	return v1.HealthStatus{
 		"": status,

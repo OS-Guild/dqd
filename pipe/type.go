@@ -13,7 +13,7 @@ import (
 type WorkerOption func(w *Worker)
 
 type Worker struct {
-	name                     string
+	Name                     string
 	sources                  []*v1.Source
 	output                   *v1.Source
 	errorSource              *v1.Source
@@ -60,7 +60,7 @@ func WithOutput(source *v1.Source) WorkerOption {
 func NewWorker(name string, sources []*v1.Source, handler handlers.Handler, opts ...WorkerOption) *Worker {
 	l := log.With().Str("scope", "Worker").Str("pipe", name).Logger()
 	w := &Worker{
-		name:    name,
+		Name:    name,
 		sources: sources,
 		handler: handler,
 		logger:  &l,

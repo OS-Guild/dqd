@@ -53,9 +53,7 @@ func MakeProbe() *Probe {
 			v1.HealthChecker
 			string
 		}),
-		current: v1.HealthStatus{
-			"": v1.Healthy,
-		},
+		current: v1.HealthStatus{},
 	}
 	go p.run()
 	return p
