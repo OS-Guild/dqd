@@ -1,0 +1,23 @@
+version: "3.7"
+
+services: 
+  sqs:
+    image: roribio16/alpine-sqs
+    logging: 
+      driver: none
+    ports: 
+    - "9325:9325"
+  dqd:
+    build: "../.."
+    image: soluto/dqd
+    depends_on: 
+    - sqs
+    environment: 
+    - AWS_REGION=us-east-1
+    - AWS_ACCESS_KEY_ID=""
+    - AWS_SECRET_ACCESS_KEY=""
+    volumes: 
+    - ./dqd.yaml:/etc/dqd/dqd.yaml
+    ports: 
+    - 9999:9999
+    - 8888:8888
