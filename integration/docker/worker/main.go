@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -38,6 +39,16 @@ func main() {
 				return
 			}
 		}
+
+		requireHeader := r.URL.Query().Get("require-header")
+		if requireHeader != "" {
+			header := strings.Split(requireHeader, ",")
+			if r.Header.Get(header[0]) != header[1] {
+				w.WriteHeader(500)
+				return
+			}
+		}
+
 		incremnt := !(r.URL.Query().Get("no-increment") == "true")
 		w.WriteHeader(200)
 		p := t
