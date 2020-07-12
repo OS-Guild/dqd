@@ -64,8 +64,7 @@ func NewHttpHandler(options *HttpHandlerOptions) Handler {
 		Method(options.Method).
 		Use(timeout.Request(2 * time.Minute))
 
-
-	baseUrl, _ := url.Parse(endpoint)
+	baseUrl, _ := url.Parse(options.Endpoint)
 
 	if options.Host != "" {
 		client.AddHeader("Host", options.Host)
