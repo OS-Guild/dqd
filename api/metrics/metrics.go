@@ -19,5 +19,5 @@ func CreateMetricsHandler() httprouter.Handle {
 	handler := promhttp.Handler()
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		handler.ServeHTTP(w, r)
-	} //httprouter.Handle. promhttp.Handler()
+	}
 }
