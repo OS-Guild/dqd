@@ -86,8 +86,11 @@ func (w *Worker) HealthStatus() v1.HealthStatus {
 	return w.probe.HealthStatus()
 }
 
-func (w *Worker) waitForHandlerToBeReady() {
+func (w *Worker) waitForHandlerToBeReady(ctx context.Context) {
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		status := w.handler.HealthStatus()
 		w.probe.UpdateStatus(status, "handler")
 		if status.IsHealthy() {
@@ -107,7 +110,10 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 
 	maxConcurrencyGauge.Set(float64(maxItems))
 
-	w.waitForHandlerToBeReady()
+	w.waitForHandlerToBeReady(ctx)
+	if ctx.Err() == context.Canceled {
+		return nil
+	}
 
 	//TODO #15 Consider replacing this code with a goroutine pool library
 	go func() {
