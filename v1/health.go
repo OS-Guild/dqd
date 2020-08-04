@@ -2,8 +2,6 @@ package v1
 
 import (
 	"fmt"
-
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
 type healthStatusValue string
@@ -57,8 +55,8 @@ func CombineHealthCheckers(checkers map[string]HealthChecker) HealthChecker {
 	}
 }
 
-func NewHealthStatus(status healthStatusValue) v1.HealthStatus {
-	return v1.HealthStatus{
+func NewHealthStatus(status healthStatusValue) HealthStatus {
+	return HealthStatus{
 		"": status,
 	}
 }
