@@ -1,0 +1,2 @@
+docker_compose("./docker-compose.yaml")
+docker_build("soluto/dqd", "../..")

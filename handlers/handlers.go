@@ -43,5 +43,6 @@ func BadRequestError(err error) HandlerError {
 
 // Handler handles queue messages.
 type Handler interface {
+	v1.HealthChecker
 	Handle(*v1.RequestContext, v1.Message) (*v1.RawMessage, HandlerError)
 }

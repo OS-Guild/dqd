@@ -22,6 +22,7 @@ type Message interface {
 }
 
 type Consumer interface {
+	HealthChecker
 	Iter(ctx context.Context, next NextMessage) error
 }
 
@@ -30,6 +31,7 @@ type ConsumerFactory interface {
 }
 
 type Producer interface {
+	HealthChecker
 	Produce(context context.Context, m *RawMessage) error
 }
 

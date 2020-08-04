@@ -174,6 +174,7 @@ func CreateApp(v *viper.Viper) (_ *App, err error) {
 	}
 
 	sources := createSources(v)
+	sources["stdout"] = v1.NewSource(&utils.IoSourceFactory{}, &utils.IoSourceFactory{}, &viper.Viper{}, "stdout")
 	listeners := createListeners(v, sources)
 	workers := createWorkers(v, sources)
 	return &App{

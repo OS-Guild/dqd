@@ -16,6 +16,10 @@ type ioClient struct {
 type IoSourceFactory struct {
 }
 
+func (c *ioClient) HealthStatus() v1.HealthStatus {
+	return v1.NewHealthStatus(v1.Healthy)
+}
+
 func (c *ioClient) Produce(context context.Context, m *v1.RawMessage) error {
 	_, err := c.file.WriteString(m.Data)
 	return err

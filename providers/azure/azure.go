@@ -195,3 +195,7 @@ func (factory *AzureQueueClientFactory) CreateConsumer(cfg *viper.Viper, logger 
 func (factory *AzureQueueClientFactory) CreateProducer(cfg *viper.Viper, logger *zerolog.Logger) v1.Producer {
 	return createAuzreQueueClient(cfg, logger)
 }
+
+func (c *azureClient) HealthStatus() v1.HealthStatus {
+	return v1.NewHealthStatus(v1.Healthy)
+}

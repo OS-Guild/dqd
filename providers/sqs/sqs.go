@@ -36,6 +36,7 @@ func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 	cfg.SetDefault("unwrapSnsMessage", false)
 
 	awsConfig := aws.NewConfig().WithRegion(cfg.GetString("region"))
+
 	endpoint := cfg.GetString("endpoint")
 	if endpoint != "" {
 		awsConfig.Endpoint = &endpoint
@@ -164,4 +165,8 @@ func (factory *SQSClientFactory) CreateConsumer(cfg *viper.Viper, logger *zerolo
 
 func (factory *SQSClientFactory) CreateProducer(cfg *viper.Viper, logger *zerolog.Logger) v1.Producer {
 	return createSQSClient(cfg, logger)
+}
+
+func (h *SQSClient) HealthStatus() v1.HealthStatus {
+	return v1.NewHealthStatus(v1.Healthy)
 }

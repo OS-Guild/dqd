@@ -28,7 +28,7 @@ func (w *Worker) handleRequest(ctx *v1.RequestContext) (_ *v1.RawMessage, err er
 	defer func() {
 		source := ctx.Source()
 		t := float64(time.Since(start)) / float64(time.Second)
-		metrics.HandlerProcessingHistogram.WithLabelValues(w.name, source, strconv.FormatBool(err == nil)).Observe(t)
+		metrics.HandlerProcessingHistogram.WithLabelValues(w.Name, source, strconv.FormatBool(err == nil)).Observe(t)
 	}()
 	return w.handler.Handle(ctx, ctx.Message())
 }
@@ -57,7 +57,7 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 			defer func() {
 				defer func() {
 					t := float64(time.Since(reqCtx.DequeueTime())) / float64(time.Second)
-					metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.name, reqCtx.Source(), strconv.FormatBool(err == nil)).Observe(t)
+					metrics.PipeProcessingMessagesHistogram.WithLabelValues(w.Name, reqCtx.Source(), strconv.FormatBool(err == nil)).Observe(t)
 				}()
 				if err != nil {
 					w.handleErrorRequest(reqCtx, err, errorP)
@@ -82,9 +82,27 @@ func (w *Worker) handleResults(ctx context.Context, results chan *v1.RequestCont
 	return nil
 }
 
+func (w *Worker) HealthStatus() v1.HealthStatus {
+	return w.probe.HealthStatus()
+}
+
+func (w *Worker) waitForHandlerToBeReady(ctx context.Context) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		status := w.handler.HealthStatus()
+		w.probe.UpdateStatus(status, "handler")
+		if status.IsHealthy() {
+			return
+		}
+		time.Sleep(time.Duration(time.Second))
+	}
+}
+
 func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestContext, results chan *v1.RequestContext) error {
-	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.name)
-	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.name)
+	maxConcurrencyGauge := metrics.WorkerMaxConcurrencyGauge.WithLabelValues(w.Name)
+	batchSizeGauge := metrics.WorkerBatchSizeGauge.WithLabelValues(w.Name)
 
 	var count, lastBatch int64
 	maxItems := int64(w.concurrencyStartingPoint)
@@ -92,7 +110,12 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 
 	maxConcurrencyGauge.Set(float64(maxItems))
 
-	// Handle messages
+	w.waitForHandlerToBeReady(ctx)
+	if ctx.Err() == context.Canceled {
+		return nil
+	}
+
+	//TODO #15 Consider replacing this code with a goroutine pool library
 	go func() {
 		for message := range messages {
 			select {
@@ -161,10 +184,12 @@ func (w *Worker) readMessages(ctx context.Context, messages chan *v1.RequestCont
 	}
 	done := make(chan error)
 	defer close(done)
+
 	for _, s := range w.sources {
 		go func(ss *v1.Source) {
 			w.logger.Info().Str("source", ss.Name).Msg("Start reading from source")
 			consumer := ss.CreateConsumer()
+
 			err := consumer.Iter(ctx, v1.NextMessage(func(m v1.Message) {
 				select {
 				case <-ctx.Done():

@@ -6,13 +6,14 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/soluto/dqd/handlers"
+	"github.com/soluto/dqd/health"
 	v1 "github.com/soluto/dqd/v1"
 )
 
 type WorkerOption func(w *Worker)
 
 type Worker struct {
-	name                     string
+	Name                     string
 	sources                  []*v1.Source
 	output                   *v1.Source
 	errorSource              *v1.Source
@@ -24,6 +25,7 @@ type Worker struct {
 	concurrencyStartingPoint int
 	minConcurrency           int
 	writeToErrorSource       bool
+	probe                    *health.Probe
 }
 
 func WithDynamicRate(start, min int, windowSize time.Duration) WorkerOption {
@@ -58,10 +60,11 @@ func WithOutput(source *v1.Source) WorkerOption {
 func NewWorker(name string, sources []*v1.Source, handler handlers.Handler, opts ...WorkerOption) *Worker {
 	l := log.With().Str("scope", "Worker").Str("pipe", name).Logger()
 	w := &Worker{
-		name:    name,
+		Name:    name,
 		sources: sources,
 		handler: handler,
 		logger:  &l,
+		probe:   health.MakeProbe(),
 	}
 	for _, o := range opts {
 		o(w)

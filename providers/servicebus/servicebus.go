@@ -105,3 +105,7 @@ func (factory *ServiceBusClientFactory) CreateConsumer(cfg *viper.Viper, logger 
 func (factory *ServiceBusClientFactory) CreateProducer(cfg *viper.Viper, logger *zerolog.Logger) v1.Producer {
 	return createServiceBusClient(cfg, logger)
 }
+
+func (sb *ServiceBusClient) HealthStatus() v1.HealthStatus {
+	return v1.NewHealthStatus(v1.Healthy)
+}
