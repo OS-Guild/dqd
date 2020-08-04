@@ -16,9 +16,7 @@ func (h *noneHandler) Handle(ctx *v1.RequestContext, message v1.Message) (*v1.Ra
 }
 
 func (h *noneHandler) HealthStatus() v1.HealthStatus {
-	return v1.HealthStatus{
-		"": v1.Healthy,
-	}
+	return v1.NewHealthStatus(v1.Healthy)
 }
 
 var None = &noneHandler{}

@@ -107,7 +107,5 @@ func (factory *ServiceBusClientFactory) CreateProducer(cfg *viper.Viper, logger 
 }
 
 func (sb *ServiceBusClient) HealthStatus() v1.HealthStatus {
-	return v1.HealthStatus{
-		"": v1.Healthy,
-	}
+	return v1.NewHealthStatus(v1.Healthy)
 }

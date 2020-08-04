@@ -168,7 +168,5 @@ func (factory *SQSClientFactory) CreateProducer(cfg *viper.Viper, logger *zerolo
 }
 
 func (h *SQSClient) HealthStatus() v1.HealthStatus {
-	return v1.HealthStatus{
-		"": v1.Healthy,
-	}
+	return v1.NewHealthStatus(v1.Healthy)
 }
