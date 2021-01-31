@@ -18,6 +18,7 @@ type SQSClient struct {
 	sqs                        sqs.SQS
 	url                        string
 	visibilityTimeoutInSeconds int64
+	maxNumberOfMessages        int64
 	unwrapSnsMessage           bool
 	logger                     *zerolog.Logger
 }
@@ -33,6 +34,7 @@ type SnsMessage struct {
 
 func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 	cfg.SetDefault("visibilityTimeoutInSeconds", 600)
+	cfg.SetDefault("maxNumberOfMessages", 10)
 	cfg.SetDefault("unwrapSnsMessage", false)
 
 	awsConfig := aws.NewConfig().WithRegion(cfg.GetString("region"))
@@ -46,6 +48,7 @@ func createSQSClient(cfg *viper.Viper, logger *zerolog.Logger) *SQSClient {
 		*svc,
 		cfg.GetString("url"),
 		cfg.GetInt64("visibilityTimeoutInSeconds"),
+		cfg.GetInt64("maxNumberOfMessages"),
 		cfg.GetBool("unwrapSnsMessage"),
 		logger,
 	}
@@ -93,10 +96,9 @@ Main:
 			break Main
 		default:
 		}
-		var maxMessages int64 = 10
 		messages, err := c.sqs.ReceiveMessage(&sqs.ReceiveMessageInput{
 			QueueUrl:            &c.url,
-			MaxNumberOfMessages: &maxMessages,
+			MaxNumberOfMessages: &c.maxNumberOfMessages,
 			VisibilityTimeout:   &c.visibilityTimeoutInSeconds,
 		})
 
