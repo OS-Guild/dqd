@@ -19,6 +19,10 @@ jobs:
       - name: test-multi
         working-directory: ./integration/tests
         run: ./multi.sh
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
       - name: Login to GHCR
         uses: docker/login-action@v1
         with:
