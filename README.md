@@ -29,5 +29,8 @@ run ```dqd```
 ### Using Docker 
 run ```docker run -v `pwd`:/etc/dqd soluto/dqd``` in a folder that conatins dqd.yaml
 
+### Publishing a new version
+for each git tag a new image is being pushed to ghcr.io: `soluto/dqd:<tag_name>`
+
 ## Status
 DQD is in very early stage (pre-alpha) and shouldn't be used in production yet.
